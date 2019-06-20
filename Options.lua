@@ -50,8 +50,8 @@ local ipairs, pairs, type, next, sort, select =
       ipairs, pairs, type, next, sort, select
 local InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print, GameTooltip, message, GetSpellInfo, IsModifierKeyDown =
       InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print, GameTooltip, message, GetSpellInfo, IsModifierKeyDown
-local UnitReaction, GetAlternatePowerInfoByID, UnitAffectingCombat =
-      UnitReaction, GetAlternatePowerInfoByID, UnitAffectingCombat
+local UnitReaction, GetAlternatePowerInfoByID, UnitAffectingCombat, GetTalentTabInfo =
+      UnitReaction, GetAlternatePowerInfoByID, UnitAffectingCombat, GetTalentTabInfo
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -2391,7 +2391,13 @@ local function AddConditionOption(Order, TO, UBF, BBar, Condition, Trigger)
   -- Value Talents
   TOA[ConditionTalent] = {
     type = 'select',
-    name = 'Talent',
+    name = function()
+             if IsTalent == nil then
+               return 'Talent'
+             else
+               return format('Talent (%s)', GetTalentTabInfo(IsTalent) or '')
+             end
+           end,
     order = function()
               return Condition.OrderNumber + Order + 0.2
             end,

@@ -2,7 +2,7 @@
 
 -- Contains custom controls.
 --
--- Spell predictor    Modified from AceGUI-3.0-Spell-EditBox
+-- Aura Menu          Modified from AceGUI-3.0-Spell-EditBox
 -- Menu Button        Button thats part menu and part button. Used by triggers
 -- Flex Button        Button that can be flexible in size.  Also can be left/center/right justified.
 -- Editbox Selected   An edit box that automatically selects what's in it.
@@ -47,7 +47,7 @@ local SpellsLoaded = false
 local Tooltip = nil
 local HyperLinkSt = 'spell:%s'
 
-local PredictorLines = 100
+local AuraMenuLines = 100
 local MenuLines = 10
 local SpellsMenuFrameWidth = 250
 local MenuArrowSize = 32 / 2.7
@@ -57,6 +57,7 @@ local FlexButtonHeight = 24
 local TextButtonHeight = 24
 local TextButtonHL = {r = 0.3, g = 0.3, b = 0.3}
 
+
 local EditBoxWidgetVersion = 1
 local AuraEditBoxWidgetVersion = 1
 local MenuButtonWidgetVersion = 1
@@ -65,8 +66,10 @@ local EditBoxSelectedWidgetVersion = 1
 local SpellInfoWidgetVersion = 1
 local TextButtonWidgetVersion = 1
 local MultiLineEditBoxWidgetVersion = 1
+local CheckBoxLongWidgetVersion = 1
 
-local EditBoxWidgetType = 'GUB_Predictor_Base'
+
+local EditBoxWidgetType = 'GUB_AuraMenu_Base'
 local AuraEditBoxWidgetType = 'GUB_Aura_EditBox'
 local MenuButtonWidgetType = 'GUB_Menu_Button'
 local FlexButtonWidgetType = 'GUB_Flex_Button'
@@ -74,15 +77,18 @@ local EditBoxSelectedWidgetType = 'GUB_EditBox_Selected'
 local MultiLineEditBoxWidgetType = 'GUB_MultiLine_EditBox'
 local SpellInfoWidgetType = 'GUB_Spell_Info'
 local TextButtonWidgetType = 'GUB_Text_Button'
+local CheckBoxLongWidgetType = 'GUB_CheckBox_Long'
+
 
 local MenuOpenedIcon        = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_MenuOpened]]
 local MenuClosedIcon        = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_MenuClosed]]
 local MenuBulletIcon        = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_MenuBullet]]
 
+local SpellsTimer = {}
 local SpellList = {}
-local SpellFilterCache = {}
+local AuraMenuFrame = nil
 
-local PredictorBackdrop = {
+local AuraMenuBackdrop = {
   bgFile   = [[Interface\ChatFrame\ChatFrameBackground]],
   edgeFile = [[Interface\DialogFrame\UI-DialogBox-Border]],
   edgeSize = 26,
@@ -124,7 +130,7 @@ local MenuButtonBorder = {
 
 local MenuButtonHighlightBorder = {
   bgFile   = LSM:Fetch('background', 'Blizzard Rock'),
-  edgeFile = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_MenuHighlightBorder]],
+  edgeFile = [[Interface\AddOns\GalvinUnitBarsClassic\Textures\GUB_MenuHighlightBorder]],
   tile = false,
   tileSize = 16,
   edgeSize = 16,
@@ -176,7 +182,7 @@ end
 
 --*****************************************************************************
 --
--- Editbox for the predictor
+-- Editbox for the aura menu
 --
 --*****************************************************************************
 
@@ -196,10 +202,10 @@ end
 --
 -- Hides the scroll and disabled mouse wheel event.
 -------------------------------------------------------------------------------
-local function HideScroller(PredictFrame, Hide)
-  local ScrollFrame = PredictFrame.ScrollFrame
-  local Scroller = PredictFrame.Scroller
-  local MenuFrame = PredictFrame.MenuFrame
+local function HideScroller(AuraMenuFrame, Hide)
+  local ScrollFrame = AuraMenuFrame.ScrollFrame
+  local Scroller = AuraMenuFrame.Scroller
+  local MenuFrame = AuraMenuFrame.MenuFrame
 
   if Hide then
     Scroller:SetValue(0)
@@ -226,6 +232,7 @@ local function OnAcquire(self)
   self:SetLabel()
   self.showButton = true
 
+  AuraMenuFrame = self.AuraMenuFrame
   LoadSpells()
 end
 
@@ -239,8 +246,10 @@ local function OnRelease(self)
 
   Frame:ClearAllPoints()
   Frame:Hide()
-  self.PredictFrame.MenuFrame:Hide()
+  self.AuraMenuFrame.MenuFrame:Hide()
   self.SpellFilter = nil
+
+  AuraMenuFrame = nil
 
   self:SetDisabled(false)
 end
@@ -264,15 +273,15 @@ local function EditBoxOnLeave(self)
 end
 
 -------------------------------------------------------------------------------
--- AddPredictorButton
+-- AddAuraMenuButton
 --
--- Adds a button to the predictor frame
+-- Adds a button to the aura menu frame
 --
 -- ActiveButton    Button position to add one at.
 -- FormatText      Format string
 -- SpellID         SpellID to add to button
 -------------------------------------------------------------------------------
-local function AddPredictorButton(self, ActiveButton, FormatText, SpellID)
+local function AddAuraMenuButton(self, ActiveButton, FormatText, SpellID)
 
   -- Ran out of text to suggest :<
   local Button = self.Buttons[ActiveButton]
@@ -293,15 +302,15 @@ local function AddPredictorButton(self, ActiveButton, FormatText, SpellID)
 end
 
 -------------------------------------------------------------------------------
--- PopulatePredictor
+-- PopulateAuraMenu
 --
--- Populates the predictor with a list of spells matching the spell name entered.
+-- Populates the aura menu with a list of spells matching the spell name entered.
 -------------------------------------------------------------------------------
 local function SortMatches(a, b)
    return SpellList[a] < SpellList[b]
 end
 
-local function PopulatePredictor(self)
+local function PopulateAuraMenu(self)
   local Widget = self.Widget
   local SearchSt = strlower(Widget.EditBox:GetText())
   local TrackedAurasList = Main.TrackedAurasList
@@ -318,9 +327,9 @@ local function PopulatePredictor(self)
       local Name = strlower(GetSpellInfo(SpellID))
 
       if strfind(Name, SearchSt, 1) == 1 then
-        if ActiveButtons < PredictorLines then
+        if ActiveButtons < AuraMenuLines then
           ActiveButtons = ActiveButtons + 1
-          AddPredictorButton(self, ActiveButtons, '|T%s:15:15:2:11|t |cFFFFFFFF%s|r', SpellID)
+          AddAuraMenuButton(self, ActiveButtons, '|T%s:15:15:2:11|t |cFFFFFFFF%s|r', SpellID)
         else
           break
         end
@@ -341,9 +350,9 @@ local function PopulatePredictor(self)
   sort(Matches, SortMatches)
 
   for _, SpellID in ipairs(Matches) do
-    if ActiveButtons < PredictorLines then
+    if ActiveButtons < AuraMenuLines then
       ActiveButtons = ActiveButtons + 1
-      AddPredictorButton(self, ActiveButtons, '|T%s:15:15:2:11|t %s', SpellID)
+      AddAuraMenuButton(self, ActiveButtons, '|T%s:15:15:2:11|t %s', SpellID)
     else
       break
     end
@@ -370,16 +379,16 @@ local function PopulatePredictor(self)
 end
 
 -------------------------------------------------------------------------------
--- PredictorShowButton
+-- AuraMenuShowButton
 --
 -- Shows the okay button in the editbox selector
 -------------------------------------------------------------------------------
-local function PredictorShowButton(self)
+local function AuraMenuShowButton(self)
   if self.LastText ~= '' then
-    self.PredictFrame.SelectedButton = nil
-    PopulatePredictor(self.PredictFrame)
+    self.AuraMenuFrame.SelectedButton = nil
+    PopulateAuraMenu(self.AuraMenuFrame)
   else
-    self.PredictFrame.MenuFrame:Hide()
+    self.AuraMenuFrame.MenuFrame:Hide()
   end
 
   if self.showButton then
@@ -389,35 +398,35 @@ local function PredictorShowButton(self)
 end
 
 -------------------------------------------------------------------------------
--- PredictorHideButton
+-- AuraMenuHideButton
 --
 -- Hides the okay button in the editbox selector
 -------------------------------------------------------------------------------
-local function PredictorHideButton(self)
+local function AuraMenuHideButton(self)
   self.Button:Hide()
   self.EditBox:SetTextInsets(0, 0, 3, 3)
 
-  self.PredictFrame.SelectedButton = nil
-  self.PredictFrame.MenuFrame:Hide()
+  self.AuraMenuFrame.SelectedButton = nil
+  self.AuraMenuFrame.MenuFrame:Hide()
 end
 
 -------------------------------------------------------------------------------
--- PredictorOnShow
+-- AuraMenuOnShow
 --
--- Hides the predictor editbox and restores binds, tooltips
+-- Hides the aura menu editbox and restores binds, tooltips
 -------------------------------------------------------------------------------
-local function PredictorOnShow(self)
+local function AuraMenuOnShow(self)
   if self.EditBox:GetText() ~= '' then
     self.MenuFrame:Show()
   end
 end
 
 -------------------------------------------------------------------------------
--- PredictorOnHide
+-- AuraMenuOnHide
 --
--- Hides the predictor editbox and restores binds, tooltips
+-- Hides the aura menu editbox and restores binds, tooltips
 -------------------------------------------------------------------------------
-local function PredictorOnHide(self)
+local function AuraMenuOnHide(self)
 
   -- Allow users to use arrows to go back and forth again without the fix
   self.Widget.EditBox:SetAltArrowKeyMode(false)
@@ -432,7 +441,8 @@ local function PredictorOnHide(self)
   self.SelectedButton = nil
   self.MenuFrame:Hide()
 
-  -- Reset all bindings set on this predictor
+
+  -- Reset all bindings set on this aura menu
   ClearOverrideBindings(self)
 end
 
@@ -443,17 +453,17 @@ end
 -------------------------------------------------------------------------------
 local function EditBoxOnEnterPressed(self)
   local Widget = self.Widget
-  local PredictFrame = Widget.PredictFrame
+  local AuraMenuFrame = Widget.AuraMenuFrame
 
-  -- Something is selected in the predictor, use that value instead of whatever is in the input box
-  if PredictFrame.SelectedButton then
-    PredictFrame.Buttons[Widget.PredictFrame.SelectedButton]:Click()
+  -- Something is selected in the aura menu, use that value instead of whatever is in the input box
+  if AuraMenuFrame.SelectedButton then
+    AuraMenuFrame.Buttons[Widget.AuraMenuFrame.SelectedButton]:Click()
     return
   end
 
   local cancel = Widget:Fire('OnEnterPressed', self:GetText())
   if not cancel then
-    PredictorHideButton(Widget)
+    AuraMenuHideButton(Widget)
   end
 
   -- Reactive the cursor, odds are if someone is adding spells they are adding more than one
@@ -483,7 +493,7 @@ local function EditBoxOnTextChanged(self)
     Widget:Fire('OnTextChanged', Value)
     Widget.LastText = Value
 
-    PredictorShowButton(Widget)
+    AuraMenuShowButton(Widget)
   end
 end
 
@@ -493,7 +503,7 @@ end
 -- Gets called when the edit box loses focus
 -------------------------------------------------------------------------------
 local function EditBoxOnEditFocusGained(self)
-  PredictorOnShow(self.Widget.PredictFrame)
+  AuraMenuOnShow(self.Widget.AuraMenuFrame)
 end
 
 -------------------------------------------------------------------------------
@@ -502,7 +512,7 @@ end
 -- Gets called when the edit box loses focus
 -------------------------------------------------------------------------------
 local function EditBoxOnEditFocusLost(self)
-  PredictorOnHide(self.Widget.PredictFrame)
+  AuraMenuOnHide(self.Widget.AuraMenuFrame)
 end
 
 -------------------------------------------------------------------------------
@@ -516,7 +526,7 @@ end
 
 --*****************************************************************************
 --
--- Editbox for the predictor
+-- Editbox for the aura menu
 -- API calls
 --
 --*****************************************************************************
@@ -555,7 +565,7 @@ local function EditBoxSetText(self, Text, Cursor)
   EditBox:SetText(self.LastText)
   EditBox:SetCursorPosition(Cursor or 0)
 
-  PredictorHideButton(self)
+  AuraMenuHideButton(self)
 end
 
 -------------------------------------------------------------------------------
@@ -582,11 +592,11 @@ local function EditBoxSetLabel(self, Text)
 end
 
 -------------------------------------------------------------------------------
--- PredictorButtonOnClick
+-- AuraMenuButtonOnClick
 --
 -- Sets the editbox to the button that was clicked in the selector
 -------------------------------------------------------------------------------
-local function PredictorButtonOnClick(self)
+local function AuraMenuButtonOnClick(self)
   local Name = GetSpellInfo(self.SpellID)
   local Parent = self.parent
 
@@ -597,11 +607,11 @@ local function PredictorButtonOnClick(self)
 end
 
 -------------------------------------------------------------------------------
--- PredictorButtonOnEnter
+-- AuraMenuButtonOnEnter
 --
--- Highlights the predictor button when the mouse enters the button area
+-- Highlights the aura menu button when the mouse enters the button area
 -------------------------------------------------------------------------------
-local function PredictorButtonOnEnter(self)
+local function AuraMenuButtonOnEnter(self)
   self.parent.SelectedButton = nil
   self:LockHighlight()
   local SpellID = self.SpellID
@@ -619,11 +629,11 @@ local function PredictorButtonOnEnter(self)
 end
 
 -------------------------------------------------------------------------------
--- PredictorButtonOnLeave
+-- AuraMenuButtonOnLeave
 --
--- Highlights the predictor button when the mouse enters the button area
+-- Highlights the aura menu button when the mouse enters the button area
 -------------------------------------------------------------------------------
-local function PredictorButtonOnLeave(self)
+local function AuraMenuButtonOnLeave(self)
   self:UnlockHighlight()
   GameTooltip:Hide()
 end
@@ -640,26 +650,26 @@ end
 -------------------------------------------------------------------------------
 -- CreateButton
 --
--- Creates a button for the predictor frame.
+-- Creates a button for the aura menu frame.
 --
--- PredictFrame       Frame the will contain the buttons
--- EditBox            Reference to the EditBox
--- Index              Button Index, needed for setpoint
+-- AuraMenuFrame  Frame the will contain the buttons
+-- EditBox        Reference to the EditBox
+-- Index          Button Index, needed for setpoint
 --
 -- Returns
 --   Button           Created buttom.
 -------------------------------------------------------------------------------
-local function CreateButton(PredictFrame, EditBox, Index)
-  local Buttons = PredictFrame.Buttons
-  local Button = CreateFrame('Button', nil, PredictFrame)
+local function CreateButton(AuraMenuFrame, EditBox, Index)
+  local Buttons = AuraMenuFrame.Buttons
+  local Button = CreateFrame('Button', nil, AuraMenuFrame)
 
   Button:SetHeight(17)
   Button:SetWidth(1)
   Button:SetPushedTextOffset(-2, 0)
-  Button:SetScript('OnClick', PredictorButtonOnClick)
-  Button:SetScript('OnEnter', PredictorButtonOnEnter)
-  Button:SetScript('OnLeave', PredictorButtonOnLeave)
-  Button.parent = PredictFrame
+  Button:SetScript('OnClick', AuraMenuButtonOnClick)
+  Button:SetScript('OnEnter', AuraMenuButtonOnEnter)
+  Button:SetScript('OnLeave', AuraMenuButtonOnLeave)
+  Button.parent = AuraMenuFrame
   Button.EditBox = EditBox
   Button:Hide()
 
@@ -667,8 +677,8 @@ local function CreateButton(PredictFrame, EditBox, Index)
     Button:SetPoint('TOPLEFT', Buttons[Index - 1], 'BOTTOMLEFT')
     Button:SetPoint('TOPRIGHT', Buttons[Index - 1], 'BOTTOMRIGHT')
   else
-    Button:SetPoint('TOPLEFT', PredictFrame, 12, -1)
-    Button:SetPoint('TOPRIGHT', PredictFrame, -7, 0)
+    Button:SetPoint('TOPLEFT', AuraMenuFrame, 12, -1)
+    Button:SetPoint('TOPRIGHT', AuraMenuFrame, -7, 0)
   end
 
   -- Create the actual text
@@ -695,17 +705,17 @@ local function CreateButton(PredictFrame, EditBox, Index)
 end
 
 -------------------------------------------------------------------------------
--- PredictorConstructor
+-- AuraMenuConstructor
 --
--- Creates the widget for the edit box and predictor
+-- Creates the widget for the edit box and aura menu
 -------------------------------------------------------------------------------
-local function PredictorConstructor()
+local function AuraMenuConstructor()
   local Frame = CreateFrame('Frame', nil, UIParent)
   local EditBox = CreateFrame('EditBox', nil, Frame, 'InputBoxTemplate')
 
   -- Don't feel like looking up the specific callbacks for when a widget resizes, so going to be creative with SetPoint instead!
   local MenuFrame = CreateFrame('Frame', nil, UIParent)
-  MenuFrame:SetBackdrop(PredictorBackdrop)
+  MenuFrame:SetBackdrop(AuraMenuBackdrop)
   MenuFrame:SetBackdropColor(0, 0, 0, 0.85)
   MenuFrame:SetWidth(1)
   MenuFrame:SetHeight(150)
@@ -720,17 +730,17 @@ local function PredictorConstructor()
   ScrollFrame:SetPoint('TOPLEFT', 0, -6)
   ScrollFrame:SetPoint('BOTTOMRIGHT', -28, 6)
 
-    local PredictFrame = CreateFrame('Frame', nil, ScrollFrame)
+    local AuraMenuFrame = CreateFrame('Frame', nil, ScrollFrame)
     local Buttons = {}
 
-    PredictFrame:SetSize(SpellsMenuFrameWidth, 2000)
-    PredictFrame.PopulatePredictor = PopulatePredictor
-    PredictFrame.EditBox = EditBox
-    PredictFrame.Buttons = Buttons
-    PredictFrame.MenuFrame = MenuFrame
-    PredictFrame.ScrollFrame = ScrollFrame
+    AuraMenuFrame:SetSize(SpellsMenuFrameWidth, 2000)
+    AuraMenuFrame.PopulateAuraMenu = PopulateAuraMenu
+    AuraMenuFrame.EditBox = EditBox
+    AuraMenuFrame.Buttons = Buttons
+    AuraMenuFrame.MenuFrame = MenuFrame
+    AuraMenuFrame.ScrollFrame = ScrollFrame
 
-  ScrollFrame:SetScrollChild(PredictFrame)
+  ScrollFrame:SetScrollChild(AuraMenuFrame)
 
   -- Create the scroller
   local Scroller = CreateFrame('slider', nil, ScrollFrame)
@@ -746,11 +756,11 @@ local function PredictorConstructor()
   Scroller:SetScript('OnValueChanged', ScrollerOnValueChanged)
 
   MenuFrame.Scroller = Scroller
-  PredictFrame.Scroller = Scroller
+  AuraMenuFrame.Scroller = Scroller
 
-  -- Create the mass of predictor rows
-  for Index = 1, PredictorLines + 1 do
-    Buttons[Index] = CreateButton(PredictFrame, EditBox, Index)
+  -- Create the mass of aura menu rows
+  for Index = 1, AuraMenuLines + 1 do
+    Buttons[Index] = CreateButton(AuraMenuFrame, EditBox, Index)
   end
 
   -- Set the main info things for this thingy
@@ -766,7 +776,7 @@ local function PredictorConstructor()
   Widget.SetText = EditBoxSetText
   Widget.SetLabel = EditBoxSetLabel
 
-  Widget.PredictFrame = PredictFrame
+  Widget.AuraMenuFrame = AuraMenuFrame
   Widget.EditBox = EditBox
 
   Widget.alignoffset = 30
@@ -776,7 +786,7 @@ local function PredictorConstructor()
 
   Frame.Widget = Widget
   EditBox.Widget = Widget
-  PredictFrame.Widget = Widget
+  AuraMenuFrame.Widget = Widget
 
   EditBox:SetScript('OnEnter', EditBoxOnEnter)
   EditBox:SetScript('OnLeave', EditBoxOnLeave)
@@ -837,7 +847,7 @@ local function AuraEditBoxConstructor()
   return AceGUI:Create(EditBoxWidgetType)
 end
 
-AceGUI:RegisterWidgetType(EditBoxWidgetType, PredictorConstructor, EditBoxWidgetVersion)
+AceGUI:RegisterWidgetType(EditBoxWidgetType, AuraMenuConstructor, EditBoxWidgetVersion)
 AceGUI:RegisterWidgetType(AuraEditBoxWidgetType, AuraEditBoxConstructor, AuraEditBoxWidgetVersion)
 
 --*****************************************************************************
@@ -1052,6 +1062,7 @@ local function MenuButtonConstructor()
   Widget.SetDisabled = MenuButtonDisable
   Widget.SetLabel = MenuButtonSetLabel
   Widget.SetText = function() end
+
 
   return AceGUI:RegisterAsWidget(Widget)
 end
@@ -1578,3 +1589,26 @@ local function SpellInfoConstructor()
 end
 
 AceGUI:RegisterWidgetType(SpellInfoWidgetType, SpellInfoConstructor, SpellInfoWidgetVersion)
+
+--*****************************************************************************
+--
+-- CheckBoxLong
+--
+-- Works the same as a normal check box. Except the label can be much longer
+--
+--*****************************************************************************
+local function CheckBoxLongConstructor()
+  local Widget = AceGUI:Create('CheckBox')
+
+  Widget.type = CheckBoxLongWidgetType
+
+  Widget.OnWidthSet = function() end
+
+  Widget.SetText = function() end
+
+  return AceGUI:RegisterAsWidget(Widget)
+end
+
+AceGUI:RegisterWidgetType(CheckBoxLongWidgetType, CheckBoxLongConstructor, CheckBoxLongWidgetVersion)
+
+

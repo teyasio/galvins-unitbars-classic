@@ -152,7 +152,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- Main.CopyPasted        - If true then a copy and paste happened.  This is set by CreateCopyPasteOptions() in Options.lua.
 -- Main.Reset             - If true then a reset happened.  This is set by CreateResetOptions() in options.lua.
 -- Main.PlayerStanceChanged
---                        - If true then the player changed their talents.
+--                        - If true then the player changed their stance.
 -- Main.PlayerStance      - Number. Contains the current stance of the player.
 -- Main.UnitBars          - Set by SharedData()
 -- Main.PlayerClass       - Set by SharedData()
@@ -1793,6 +1793,7 @@ end
 --   Talents.Active[Talent Name]   Talent Name is a string, if not nil then talent is in use
 --   Talents[TabIndex]             Array showing all the available talents based on the talent tab window used by options
 --     Dropdown                    Dropdown menu used by options
+--     IconDropdown                Same as dropdown with icons
 -------------------------------------------------------------------------------
 function GUB.Main:GetTalents()
   local Active = Talents.Active
