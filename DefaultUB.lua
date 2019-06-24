@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 102
+GUB.DefaultUB.Version = 103
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -1698,6 +1698,10 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+
+Version 1.03
+|cff00ff00Trigger|r talents menu now has a scrollbar
+|cff00ff00Options|r will automatically open after combat ends if you try to open during combat
 
 Version 1.00
 Galvin's Unitbars Classic Release.  This will only work on classic

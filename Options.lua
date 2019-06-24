@@ -88,6 +88,7 @@ local AddonSlashOptions = MyAddon
 local DoFunctions = {}
 local MainOptionsHideFrame = CreateFrame('Frame')
 local SwapAlignOptionsHideFrame = CreateFrame('Frame')
+local OutOfCombatFrame = CreateFrame('Frame')
 
 local SlashOptions = nil
 local OptionsToGUB = nil
@@ -750,54 +751,43 @@ local function OnHideToGUBOptions()
   Options.MainOptionsOpen = false
 end
 
-local function OpenOptions()
+local function OpenOptionsOOC()
+
   -- Hide blizz blizz options if it's opened.
   if InterfaceOptionsFrame:IsVisible() then
     InterfaceOptionsFrame:Hide()
-
     -- Hide the UI panel behind blizz options.
     HideUIPanel(GameMenuFrame)
   end
-
   Bar:SetHighlightFont('on', Main.UnitBars.HideTextHighlight)
   Options.MainOptionsOpen = true
-
   -- Open a movable options frame.
   AceConfigDialog:SetDefaultSize(AddonMainOptions, o.MainOptionsWidth, o.MainOptionsHeight)
-
   AceConfigDialog:Open(AddonMainOptions)
-
   -- Set the OnHideFrame's frame parent to AceConfigDialog's options frame.
   MainOptionsHideFrame:SetParent(AceConfigDialog.OpenFrames[AddonMainOptions].frame)
-
   -- When hidden call OnHideToGUBOptions for close.
   MainOptionsHideFrame:SetScript('OnHide', OnHideToGUBOptions)
 end
 
-local function CheckForNoCombat(Timer)
-  if not UnitAffectingCombat('player') then
-    Main:SetTimer(Timer, nil)
-    OpenOptions()
+local function OpenOptions()
+  if not Main.InCombat then
+    OpenOptionsOOC()
+  else
+    OutOfCombatFrame:RegisterEvent('PLAYER_REGEN_ENABLED')
+    OutOfCombatFrame:SetScript('OnEvent', OpenOptionsOOC)
+    print(InCombatOptionsMessage2)
   end
 end
 
 local function CreateToGUBOptions(Order, Name, Desc)
-  local Timer = {}
-
   local ToGUBOptions = {
     type = 'execute',
     name = Name,
     order = Order,
     desc = Desc,
     func = function()
-             -- check for in combat
-             if not Main.InCombat then
-               OpenOptions()
-             else
-               Main:SetTimer(Timer, nil)
-               Main:SetTimer(Timer, CheckForNoCombat, 0.10)
-               print(InCombatOptionsMessage2)
-             end
+             OpenOptions()
            end,
   }
   return ToGUBOptions
@@ -2391,6 +2381,7 @@ local function AddConditionOption(Order, TO, UBF, BBar, Condition, Trigger)
   -- Value Talents
   TOA[ConditionTalent] = {
     type = 'select',
+    dialogControl = 'GUB_Dropdown_Select',
     name = function()
              if IsTalent == nil then
                return 'Talent'

@@ -3917,8 +3917,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 1 then
-    GUBData.ShowMessage = 1
+  if GUBData.ShowMessage ~= 2 then
+    GUBData.ShowMessage = 2
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end
