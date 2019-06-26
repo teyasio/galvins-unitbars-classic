@@ -1401,7 +1401,11 @@ function BarDB:PlaySound(SoundName, Channel)
   -- No SaveSettings for sound. Since there is nothing visual to restore.
 
   if not Main.ProfileChanged and not Main.IsDead then
-    PlaySoundFile(LSM:Fetch('sound', SoundName), Channel)
+    local SoundFile = LSM:Fetch('sound', SoundName, true)
+
+    if SoundFile then
+      pcall(PlaySoundFile, SoundFile, Channel)
+    end
   end
 end
 
