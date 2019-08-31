@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 103
+GUB.DefaultUB.Version = 104
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -1698,6 +1698,8 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+Version 1.04
+|cff00ff00Applied changes from GUB 6.37|r
 
 Version 1.03
 |cff00ff00Trigger|r talents menu now has a scrollbar
