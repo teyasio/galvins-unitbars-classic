@@ -15,7 +15,11 @@ local DUB = GUB.DefaultUB.Default.profile
 
 local UnitBarsF = Main.UnitBarsF
 local LSM = Main.LSM
+local RMH = Main.RMH
 local ConvertPowerType = Main.ConvertPowerType
+
+-- Real Mob Health
+local RMHGetUnitHealth = RMH and RMH.GetUnitHealth
 
 -- localize some globals.
 local _, _G =
@@ -210,9 +214,20 @@ local function UpdateHealthBar(self, Event, Unit)
   local UB = self.UnitBar
   local Layout = UB.Layout
   local Bar = UB.Bar
+  Unit = UB.UnitType
 
-  local CurrValue = UnitHealth(Unit)
-  local MaxValue = UnitHealthMax(Unit)
+  local CurrValue = nil
+  local MaxValue = nil
+
+  -- Check for real mob health
+  if Layout.UseRealMobHealth and RMH and Unit == 'target' then
+    CurrValue, MaxValue = RMHGetUnitHealth('target')
+    CurrValue = CurrValue or 0
+    MaxValue = MaxValue or 0
+  else
+    CurrValue = UnitHealth(Unit)
+    MaxValue = UnitHealthMax(Unit)
+  end
   local Level = UnitLevel(Unit)
 
   local Name, Realm = UnitName(Unit)
@@ -636,16 +651,15 @@ end
 -- Health and Power bar Enable/Disable functions
 --
 --*****************************************************************************
-
-local function RegEventHealth(Enable, UnitBarF, ...)
-  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_HEALTH_FREQUENT',            UpdateHealthBar, ...)
-  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_MAXHEALTH',                  UpdateHealthBar, ...)
-  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_FACTION',                    UpdateHealthBar, ...)
+local function RegEventHealth(Enable, UnitBarF, Unit)
+  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_HEALTH_FREQUENT',            UpdateHealthBar, Unit)
+  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_MAXHEALTH',                  UpdateHealthBar, Unit)
+  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_FACTION',                    UpdateHealthBar, Unit)
 end
 
-local function RegEventPower(Enable, UnitBarF, ...)
-  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_POWER_FREQUENT', UpdatePowerBar, ...)
-  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_MAXPOWER',       UpdatePowerBar, ...)
+local function RegEventPower(Enable, UnitBarF, Unit)
+  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_POWER_FREQUENT', UpdatePowerBar, Unit)
+  Main:RegEventFrame(Enable, UnitBarF, 'UNIT_MAXPOWER',       UpdatePowerBar, Unit)
 end
 
 function Main.UnitBarsF.PlayerHealth:Enable(Enable)

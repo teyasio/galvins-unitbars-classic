@@ -30,6 +30,7 @@ GUB.Options = Options
 LibStub('AceAddon-3.0'):NewAddon(GUB, MyAddon, 'AceConsole-3.0', 'AceEvent-3.0')
 
 local LSM = LibStub('LibSharedMedia-3.0')
+local RMH = RealMobHealth
 
 -- localize some globals.
 local _, _G =
@@ -148,6 +149,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- Main.UnitBarsF         - Reference to UnitBarsF
 -- Main.UnitBarsFE        - Reference to UnitBarsFE
 -- Main.LSM               - Reference to Lib Shared Media.
+-- Main.RMH               - Reference to Real Mob Health.
 -- Main.ProfileChanged    - If true then profile is currently being changed. This is set by SetUnitBars()
 -- Main.CopyPasted        - If true then a copy and paste happened.  This is set by CreateCopyPasteOptions() in Options.lua.
 -- Main.Reset             - If true then a reset happened.  This is set by CreateResetOptions() in options.lua.
@@ -433,6 +435,7 @@ DUB.PetPower.BarVisible     = function() return HasPet end
 
 -- Share with the whole addon.
 Main.LSM = LSM
+Main.RMH = RMH
 Main.PowerColorType = PowerColorType
 Main.ConvertPowerType = ConvertPowerType
 Main.ConvertCombatColor = ConvertCombatColor
@@ -482,7 +485,8 @@ local function RegisterEvents(Action, EventType)
     Main:RegEvent(true, 'UNIT_MAXPOWER',                 GUB.UnitBarsUpdateStatus, 'player')
     Main:RegEvent(true, 'UNIT_POWER_BAR_SHOW',           GUB.UnitBarsUpdateStatus, 'player')
     Main:RegEvent(true, 'UNIT_POWER_BAR_HIDE',           GUB.UnitBarsUpdateStatus, 'player')
-    Main:RegEvent(true, 'UNIT_PET',                      GUB.UnitBarsUpdateStatus)
+    Main:RegEvent(true, 'UNIT_PET',                      GUB.UnitBarsUpdateStatus, 'player')
+    Main:RegEvent(true, 'PET_UI_UPDATE',                 GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'UNIT_FACTION',                  GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'PLAYER_REGEN_ENABLED',          GUB.UnitBarsUpdateStatus)
     Main:RegEvent(true, 'PLAYER_REGEN_DISABLED',         GUB.UnitBarsUpdateStatus)
@@ -3928,8 +3932,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 4 then
-    GUBData.ShowMessage = 4
+  if GUBData.ShowMessage ~= 5 then
+    GUBData.ShowMessage = 5
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

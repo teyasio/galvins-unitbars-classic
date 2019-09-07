@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 104
+GUB.DefaultUB.Version = 105
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -729,6 +729,7 @@ MergeTable(Profile.TargetHealth, {
 
     _More = 1,
 
+    UseRealMobHealth = true,
     ClassColor = false,
     CombatColor = false,
     TaggedColor = false,
@@ -1698,6 +1699,10 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+Version 1.05
+|cff00ff00Pet Bars|r should be fixed. Let me know
+|cff00ff00RealMobHealth|r Enabled by default.  Can be found under Target Health -> Layout
+
 Version 1.04
 |cff00ff00Applied changes from GUB 6.37|r
 

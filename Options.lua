@@ -4730,6 +4730,10 @@ local function CreateMoreLayoutOptions(BarType, Order)
 
             Layout[KeyName] = Value
             UBF:SetAttr('Layout', KeyName)
+
+            if KeyName == 'UseRealMobHealth' then
+              UBF:Update()
+            end
           end,
     args = {}
   }
@@ -4737,11 +4741,29 @@ local function CreateMoreLayoutOptions(BarType, Order)
   local MoreLayoutArgs = MoreLayoutOptions.args
 
   -- Health and power bar options.
+  if UBD.Layout.UseRealMobHealth ~= nil then
+    MoreLayoutArgs.UseRealMobHealth = {
+      type = 'toggle',
+      name = function()
+               local Name = 'Use RealMobHealth'
+               if Main.RMH == nil then
+                 Name = Name .. ' (Addon Not Loaded)'
+               end
+               return Name
+             end,
+      order = 1,
+      width = 'full',
+      desc = 'If checked will use RealMobHealth. Need RealMobHealth addon installed',
+      disabled = function()
+                   return Main.RMH == nil
+                 end
+    }
+  end
   if UBD.Layout.UseBarColor ~= nil then
     MoreLayoutArgs.UseBarColor = {
       type = 'toggle',
       name = 'Use Bar Color',
-      order = 1,
+      order = 2,
       desc = 'Use bar color instead of power color',
     }
   end
