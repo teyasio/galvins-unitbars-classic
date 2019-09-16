@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 105
+GUB.DefaultUB.Version = 110
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -73,7 +73,7 @@ GUB.DefaultUB.Version = 105
 --                          being copied is inside of a larger table that has the _DC tag.  Then it will still get deep copied.
 --   _<key name>          - Any key that starts with '_' will never get copied even if there is a _DC tag present.
 --   Name                 - Name of the bar.
---   UnitType             - Type of unit: 'player', 'pet', 'target'
+--   UnitType             - For Health and Power bars. Type of unit: 'player', 'pet', 'target'
 --   Enabled              - If true bar can be used, otherwise disabled.  Will not appear in options.
 --   BarVisible()         - Returns true or false.  This gets referenced by UnitBarsF. Not all bars use this. Set in Main.lua
 --   ClassStances           - See main.lua CheckClassStances()
@@ -368,6 +368,11 @@ end
 -- Default Profile Database
 --=============================================================================
 GUB.DefaultUB.Default = {
+  global = {
+    ShowMessage = 0,
+    AutoExpand = true,
+    ExpandAll = false,
+  },
   profile = {
     Point = 'CENTER',
     RelativePoint = 'CENTER',
@@ -1699,6 +1704,11 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+Version 1.10
+|cff00ff00UI changes for the bar menu|r
+|cff00ff00Auto Expand option added|r Found at the root of each bar menu.  It will expand the menu currently selected
+|cff00ff00Expand all|r Expands all the bar menus at once.  Both these settings apply to all characters on the same account
+
 Version 1.05
 |cff00ff00Pet Bars|r should be fixed. Let me know
 |cff00ff00RealMobHealth|r Enabled by default.  Can be found under Target Health -> Layout

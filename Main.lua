@@ -129,7 +129,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --   Created              - If nil then the bar has not been created yet, otherwise true.
 --   OldEnabled           - Current state of the bar. This is used to detect if a bar is being changed from enabled to disabled or
 --                          vice versa.  Used by SetUnitBars().
---   Visible              - True or false.  If true then the bar is visible otherwise hidden.
+--   Hidden               - True or false.  If true then the bar is hidden
 --   IsActive             - True, false, or 0.
 --                            True   The bar is considered to be doing something.
 --                            False  The bar is not active.
@@ -156,25 +156,25 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- Main.PlayerStanceChanged
 --                        - If true then the player changed their stance.
 -- Main.PlayerStance      - Number. Contains the current stance of the player.
--- Main.UnitBars          - Set by SharedData()
--- Main.PlayerClass       - Set by SharedData()
--- Main.ConvertPlayerClass - Reference to ConvertPlayerClass
--- Main.PlayerPowerType   - Set by SharedData() and UnitBarsUpdateStatus()
+-- Main.UnitBars          - Set by ShardData()
+-- Main.Gdata             - Set by SharedData()
+-- Main.PlayerClass       - Set by ShareData()
+-- Main.PlayerPowerType   - Set by ShareData() and UnitBarsUpdateStatus()
 -- Main.ConvertCombatColor - Reference to ConvertCombatColor
--- Main.PowerColorType    - Reference to PowerColorType
+-- Main.ConvertPowerTypeHAP - Reference to ConvertPowerTypeHAP
 -- Main.ConvertPowerType  - Reference to ConvertPowerType
 -- Main.InCombat          - set by UnitBarsUpdateStatus()
 -- Main.IsDead            - set by UnitBarsUpdateStatus()
 -- Main.HasTarget         - set by UnitBarsUpdateStatus()
--- Main.HasAltPower       - set by UnitBarsUpdateStatus()
 -- Main.TrackedAurasList  - Set by SetAuraTracker()
 -- Main.PlayerGUID        - Set by ShareData()
 --
 -- Main.Talents           - Contains the table Talents
 --
--- GUBData                - Reference to GalvinUnitBarsData.  Anything stored in here gets saved in the profile.
--- PowerColorType         - Table used by InitializeColors()
--- ConvertPowerType       - Table to convert a string powertype into a number or back into a number.
+-- Gdata                  - Anything stored in here can be seen by all characters on the same account
+-- ConvertPowerType       - Table to convert a string powertype into a number
+-- ConvertPowerTypeHAP    - Table used by InitializeColors()
+--                          Same as ConvertPowerType except only has power types for power bars in HAP
 -- ConvertCombatColor     - Converts combat color into a number.
 -- InitOnce               - Used by OnEnable to initialize just one time.
 -- MessageBox             - Contains the message box to show a message on screeen.
@@ -191,8 +191,6 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- HasPet                 - True or false. If true then the player has a pet.
 --
 -- PlayerClass            - Name of the class for the player in uppercase, no spaces. not langauge sensitive.
--- ConvertPlayerClass     - Turns PlayerClass into lower case with spaces if needed and back into uppercase.
---                          Also used to turn an index number into a player class.
 -- PlayerGUID             - Globally unique identifier for the player.  Used by CombatLogUnfiltered()
 -- PlayerPowerType        - The current power type for the player.
 -- PlayerStance           - The current form/stance the player is in. 0 for none
@@ -311,7 +309,7 @@ local TrackingFrame = CreateFrame('Frame')
 local ScanTooltip = nil
 local AuraListName = 'AuraList'
 local InitOnce = true
-local GUBData = nil
+local Gdata = nil
 local MessageBox = nil
 local UnitBarsParent = nil
 local UnitBars = nil
@@ -404,8 +402,21 @@ local AnchorOffset = {
 }
 
 local ConvertPowerType = {
-  MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3, COMBO_POINTS = 4,
-  [0] = 'MANA', [1] = 'RAGE', [2] = 'FOCUS', [3] = 'ENERGY', [4] = 'COMBO_POINTS',
+  MANA           = 0,
+  RAGE           = 1,
+  FOCUS          = 2,
+  ENERGY         = 3,
+  COMBO_POINTS   = 4,
+
+  -- In InitializeColors() power types in foreign languages added here.
+  -- string = number.
+}
+
+local ConvertPowerTypeHAP = {
+  MANA           = 0,
+  RAGE           = 1,
+  FOCUS          = 2,
+  ENERGY         = 3,
 
   -- In InitializeColors() power types in foreign languages added here.
   -- string = number.
@@ -413,21 +424,6 @@ local ConvertPowerType = {
 
 local ConvertCombatColor = {
   Hostile = 1, Attack = 2, Flagged = 3, Friendly = 4,
-}
-
-local PowerColorType = {
-  MANA = 0, RAGE = 1, FOCUS = 2, ENERGY = 3
-}
-
-local ConvertPlayerClass = {
-  DRUID = 'Druid', HUNTER = 'Hunter', MAGE    = 'Mage',    PALADIN = 'Paladin', PRIEST = 'Priest',
-  ROGUE = 'Rogue', SHAMAN = 'Shaman', WARLOCK = 'Warlock', WARRIOR = 'Warrior',
-
-  Druid = 'DRUID', Hunter = 'HUNTER', Mage    = 'MAGE',    Paladin = 'PALADIN', Priest = 'PRIEST',
-  Rogue = 'ROGUE', Shaman = 'SHAMAN', Warlock = 'WARLOCK', Warrior = 'WARRIOR',
-
-  -- Indexed
-  'DRUID', 'HUNTER', 'MAGE', 'PALADIN', 'PRIEST', 'ROGUE', 'SHAMAN', 'WARLOCK', 'WARRIOR'
 }
 
 DUB.PetHealth.BarVisible    = function() return HasPet end
@@ -438,8 +434,8 @@ Main.LSM = LSM
 Main.RMH = RMH
 Main.PowerColorType = PowerColorType
 Main.ConvertPowerType = ConvertPowerType
+Main.ConvertPowerTypeHAP = ConvertPowerType
 Main.ConvertCombatColor = ConvertCombatColor
-Main.ConvertPlayerClass = ConvertPlayerClass
 Main.Talents = Talents
 Main.UnitBarsF = UnitBarsF
 Main.UnitBarsFE = UnitBarsFE
@@ -524,15 +520,24 @@ end
 -------------------------------------------------------------------------------
 local function InitializeColors()
   local ConvertPowerTypeL = {}
+  local ConvertPowerTypeHAPL = {}
 
   -- Copy the power colors.
-  for PowerType, Value in pairs(PowerColorType) do
+  -- Add foreign language or english to ConvertPowerTypeHAP
+  for PowerType, Value in pairs(ConvertPowerTypeHAP) do
     local Color = PowerBarColor[Value]
     local r, g, b = Color.r, Color.g, Color.b
+    local PowerTypeL = _G[PowerType]
 
     DUB.PowerColor = DUB.PowerColor or {}
     DUB.PowerColor[Value] = {r = r, g = g, b = b, a = 1}
+
+    if PowerTypeL then
+      ConvertPowerTypeHAPL[strupper(PowerTypeL)] = Value
+    end
+    ConvertPowerTypeHAPL[PowerType] = Value
   end
+  ConvertPowerTypeHAP = ConvertPowerTypeHAPL
 
   -- Copy the class colors.
   for Class, Color in pairs(RAID_CLASS_COLORS) do
@@ -547,17 +552,14 @@ local function InitializeColors()
     DUB.ClassColor[Class] = {r = r, g = g, b = b, a = 1}
   end
 
-  -- Add foreign language to ConvertPowerType
+  -- Add foreign language or english to ConvertPowerType
   for PowerType, Value in pairs(ConvertPowerType) do
-    if type(PowerType) == 'string' then
-      local PowerTypeL = _G[PowerType]
+    local PowerTypeL = _G[PowerType]
 
-      if PowerTypeL then
-        ConvertPowerTypeL[strupper(PowerTypeL)] = Value
-      end
-    else
-      ConvertPowerTypeL[PowerType] = Value
+    if PowerTypeL then
+      ConvertPowerTypeL[strupper(PowerTypeL)] = Value
     end
+    ConvertPowerTypeL[PowerType] = Value
   end
   ConvertPowerType = ConvertPowerTypeL
 end
@@ -2305,60 +2307,57 @@ end
 -------------------------------------------------------------------------------
 function GUB.Main:StatusCheck(Event)
   local UB = self.UnitBar
-  local Status = UB.Status
-  local Visible = true
-  local ClassStanceEnabled = false
 
   -- Need to check enabled here cause when a bar gets enabled its layout gets set.
   -- Causing this function to get called even if the bar is disabled.
   if UB.Enabled then
+    local Status = UB.Status
+    local Hide = false
+    local ClassStanceEnabled = false
+
     ClassStanceEnabled = Main:CheckPlayerStances(self.BarType, UB.ClassStances)
     self.ClassStanceEnabled = ClassStanceEnabled
 
     if not ClassStanceEnabled then
-      Visible = false
+      Hide = true
 
     -- Show bars if not locked or testing.
     elseif UnitBars.IsLocked or not UnitBars.Testing then
-
       -- Continue if show always is false.
       if not Status.ShowAlways then
 
         -- Check to see if the bar has an enable function and call it.
         local Fn = self.BarVisible
         if Fn then
-          Visible = Fn()
+          Hide = not Fn()
         end
-        if Visible then
+        if not Hide then
           -- Hide if the HideWhenDead status is set.
           if IsDead and Status.HideWhenDead then
-            Visible = false
+            Hide = true
           -- Hide if the player has no target.
           elseif not HasTarget and Status.HideNoTarget then
-            Visible = false
+            Hide = true
           -- Get the idle status based on HideNotActive when not in combat.
           -- If the flag is not present then it defaults to false.
           elseif not InCombat and Status.HideNotActive then
             local IsActive = self.IsActive
-            Visible = IsActive == true
+            Hide = IsActive == false
             -- if not visible then set IsActive to watch for activity.
-            if not Visible then
+            if Hide then
               self.IsActive = 0
             end
           -- Hide if not in combat with the HideNoCombat status.
           elseif not InCombat and Status.HideNoCombat then
-            Visible = false
+            Hide = true
           end
         end
       end
     end
+
+    -- Hide/show the unitbar.
+    HideUnitBar(self, Hide)
   end
-
-  -- Update the visible flag.
-  self.Visible = Visible
-
-  -- Hide/show the unitbar.
-  HideUnitBar(self, not Visible)
 end
 
 --*****************************************************************************
@@ -2655,9 +2654,8 @@ end
 -------------------------------------------------------------------------------
 local function TrackMouse(TrackingFrame)
   local x, y = GetCursorPosition()
-  local LastX, LastY = TrackingFrame.LastX, TrackingFrame.LastY
 
-  if x ~= LastX or y ~= LastY then
+  if x ~= TrackingFrame.LastX or y ~= TrackingFrame.LastY then
     MoveFrameGetNearestFrame(TrackingFrame)
     TrackingFrame.LastX = x
     TrackingFrame.LastY = y
@@ -2728,7 +2726,7 @@ function GUB.Main:MoveFrameStart(MoveFrames, MoveFrame, MoveFlags)
 
   TrackingFrame.LastX = nil
   TrackingFrame.LastY = nil
-  Main:SetTimer(TrackingFrame, TrackMouse, 0.01, 0)
+  Main:SetTimer(TrackingFrame, TrackMouse, 0.10, 0)
 
   MoveFrame:StartMoving()
 end
@@ -3222,8 +3220,6 @@ function GUB:UnitBarsUpdateStatus(Event)
     if PlayerStanceChanged then
       UBF:SetAttr('Layout', 'EnableTriggers')
     end
-
-    UBF:StatusCheck()
     UBF:Update()
   end
   Main.PlayerStanceChanged = false
@@ -3462,7 +3458,6 @@ local function SetUnitBarLayout(UnitBarF, BarType)
   UnitBarF.ClassStanceEnabled = false
 
   -- Hide the unitbar.
-  UnitBarF.Visible = false
   UnitBarF.Hidden = true
   Anchor:Hide()
 
@@ -3612,7 +3607,6 @@ function GUB.Main:SetUnitBars(ProfileChanged)
       local Created = UBF.Created
 
       if Enabled then
-
         -- If the unitbar is being created for the first time or
         -- the profile was changed.  Then set layout, baroptions.
         if Created == nil then
@@ -3624,9 +3618,11 @@ function GUB.Main:SetUnitBars(ProfileChanged)
       elseif Created and not ProfileChanged then
         HideUnitBar(UBF, true)
       end
+
       if ProfileChanged and Created or JustCreated then
         SetUnitBarLayout(UBF, BarType)
       end
+
       UBF:Enable(Enabled)
     end
     UBF.OldEnabled = Enabled
@@ -3659,6 +3655,7 @@ local function ShareData()
   Main.PlayerClass = PlayerClass
   Main.PlayerPowerType = PlayerPowerType
   Main.PlayerGUID = PlayerGUID
+  Main.Gdata = Gdata
 
   -- Refresh reference to UnitBar[BarType]
   for BarType, UBF in pairs(UnitBarsF) do
@@ -3898,11 +3895,6 @@ function GUB:OnEnable()
   end
   InitOnce = false
 
-  if GalvinUnitBarsClassicData == nil then
-    GalvinUnitBarsClassicData = {}
-  end
-  GUBData = GalvinUnitBarsClassicData
-
   -- Add blizzards powerbar colors and class colors to defaults.
   InitializeColors()
 
@@ -3911,12 +3903,14 @@ function GUB:OnEnable()
   GUB.MainDB = LibStub('AceDB-3.0'):New('GalvinUnitBarsClassicDB', GUB.DefaultUB.Default, true)
 
   UnitBars = GUB.MainDB.profile
+  Gdata = GUB.MainDB.global
 
+  -- Get player stuff
+  -- Get the globally unique identifier for the player.
   _, PlayerClass = UnitClass('player')
   PlayerPowerType = UnitPowerType('player')
-
-  -- Get the globally unique identifier for the player.
   PlayerGUID = UnitGUID('player')
+  Main:GetTalents()
 
   ShareData()
   Options:OnInitialize()
@@ -3932,8 +3926,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if GUBData.ShowMessage ~= 5 then
-    GUBData.ShowMessage = 5
+  if Gdata.ShowMessage ~= 6 then
+    Gdata.ShowMessage = 6
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

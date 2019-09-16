@@ -9,33 +9,18 @@
 local MyAddon, GUB = ...
 
 local DUB = GUB.DefaultUB.Default.profile
-local Version = GUB.DefaultUB.Version
-local InCombatOptionsMessage = GUB.DefaultUB.InCombatOptionsMessage
-local InCombatOptionsMessage2 = GUB.DefaultUB.InCombatOptionsMessage2
-
-local DefaultBgTexture        = GUB.DefaultUB.DefaultBgTexture
-local DefaultBorderTexture    = GUB.DefaultUB.DefaultBorderTexture
-local DefaultStatusBarTexture = GUB.DefaultUB.DefaultStatusBarTexture
-local DefaultSound            = GUB.DefaultUB.DefaultSound
-local DefaultSoundChannel     = GUB.DefaultUB.DefaultSoundChannel
-local DefaultFontType         = GUB.DefaultUB.DefaultFontType
+local GD = GUB.DefaultUB
 
 local Main = GUB.Main
 local Bar = GUB.Bar
 local Options = GUB.Options
 
 local UnitBarsF = Main.UnitBarsF
-local PowerColorType = Main.PowerColorType
+local ConvertPowerTypeHAP = Main.ConvertPowerTypeHAP
 local ConvertPowerType = Main.ConvertPowerType
 local ConvertCombatColor = Main.ConvertCombatColor
-local ConvertPlayerClass = Main.ConvertPlayerClass
 local LSM = Main.LSM
 local Talents = Main.Talents
-
-local HelpText = GUB.DefaultUB.HelpText
-local ChangesText = GUB.DefaultUB.ChangesText
-local LinksText = GUB.DefaultUB.LinksText
-local ClassStanceNames = GUB.DefaultUB.ClassStanceNames
 
 -- localize some globals.
 local _
@@ -103,6 +88,16 @@ local SelectedMenuButtonName = 'Main'
 local MenuButtons = nil
 
 local DebugText = ''
+
+local RefreshFrame = CreateFrame('Frame')
+local OptionsTreeData = {
+  Order = {},
+  Expanded = {},
+  Root = {},
+  BranchKeys = {},
+  AutoExpandBarType = false,
+  EnableCount = 0,
+}
 
 local o = {
 
@@ -234,6 +229,38 @@ local o = {
   RuneOffsetXMax = 50,
   RuneOffsetYMin = -50,
   RuneOffsetYMax = 50,
+}
+
+local ConvertPlayerClass = {
+  DRUID            = 'Druid',
+  HUNTER           = 'Hunter',
+  MAGE             = 'Mage',
+  PALADIN          = 'Paladin',
+  PRIEST           = 'Priest',
+  ROGUE            = 'Rogue',
+  SHAMAN           = 'Shaman',
+  WARLOCK          = 'Warlock',
+  WARRIOR          = 'Warrior',
+  Druid            = 'DRUID',
+  Hunter           = 'HUNTER',
+  Mage             = 'MAGE',
+  Paladin          = 'PALADIN',
+  Priest           = 'PRIEST',
+  Rogue            = 'ROGUE',
+  Shaman           = 'SHAMAN',
+  Warlock          = 'WARLOCK',
+  Warrior          = 'WARRIOR',
+
+  -- Indexed
+  'DRUID',         -- 3
+  'HUNTER',        -- 4
+  'MAGE',          -- 5
+  'PALADIN',       -- 7
+  'PRIEST',        -- 8
+  'ROGUE',         -- 9
+  'SHAMAN',        -- 10
+  'WARLOCK',       -- 11
+  'WARRIOR'        -- 12
 }
 
 local LSMStatusBarDropdown = LSM:HashTable('statusbar')
@@ -730,6 +757,239 @@ local function CreateSpacer(Order, Width, HiddenFn)
   }
 end
 
+-------------------------------------------------------------------------------
+-- CreateSpacer
+--
+-- Creates type 'description' for full width.  This is used to create a blank
+-- line so that option elements appear in certain places on the screen.
+--
+-- Order         Order number
+-- Width         Optional width.
+-- HiddenFn      If not nil then will supply a function that will make the
+--               spacer hidden or not.
+-------------------------------------------------------------------------------
+local function CreateSpacer(Order, Width, HiddenFn)
+  return {
+    type = 'description',
+    name = '',
+    order = Order,
+    width = Width or 'full',
+    hidden = HiddenFn,
+  }
+end
+
+-------------------------------------------------------------------------------
+-- RefreshEnable
+--
+-- Does a refresh options if the enable menu tree button is clicked on
+-- This causes any autoexpanded trees to be closed
+--
+-- NOTES:  When the enable button is clicked. A count is set to see how
+--         times the name function is called inside the RefreshButton
+--         this buttin is hidden so it doesn't appear in the options.
+--         Then a setscript to run on the next frame will call the function
+--         to check to see how many times the name function was called.
+--         if its more once.  Then the enable button was clicked on.
+--
+--         The refreshing flag is to prevent recursion
+-------------------------------------------------------------------------------
+local function RefreshFrameOnUpdate()
+  local Refreshing = OptionsTreeData.Refreshing
+
+  RefreshFrame:SetScript('OnUpdate', nil)
+  if OptionsTreeData.EnableCount > 1 and not Refreshing then
+    Refreshing = true
+    OptionsTreeData.AutoExpandBarType = false
+    Options:RefreshMainOptions()
+  else
+    Refreshing = false
+  end
+  OptionsTreeData.Refreshing = Refreshing
+  OptionsTreeData.EnableCount = 0
+end
+
+local function RefreshEnable()
+  if Main.Gdata.AutoExpand then
+    OptionsTreeData.EnableCount = OptionsTreeData.EnableCount + 1
+    RefreshFrame:SetScript('OnUpdate', RefreshFrameOnUpdate)
+  end
+end
+
+-------------------------------------------------------------------------------
+-- AddOptionsTree
+--
+-- Creates and adds to an options tree. Creates a tab view on the right
+--
+-- TreeGroups         Table containing the tree view on the left
+-- BarType            This is used for the key name
+-- Name               Name that will appear in the menu tree on the left
+-- Order              Order number position in the tree
+-------------------------------------------------------------------------------
+local function AddOptionsTree(TreeGroups, BarType, Order, Name, Desc)
+  local Expanded = OptionsTreeData.Expanded
+  local Gdata = Main.Gdata
+  Expanded[BarType] = false
+
+  local OptionsTree = {
+    type = 'group',
+    name = Name,
+    order = Order,
+    desc = Desc,
+    childGroups = 'tab',
+    args = {
+      Expand = {
+        type = 'description',
+        order = 0,
+        name = function()
+                 if Gdata.AutoExpand and OptionsTreeData.AutoExpandBarType ~= BarType then
+                   OptionsTreeData.AutoExpandBarType = BarType
+                   Options:RefreshMainOptions()
+                 end
+               end,
+        hidden = true
+      },
+      AutoExpand = {
+        type = 'toggle',
+        width = 'normal',
+        name = 'Auto Expand',
+        order = 1,
+        get = function()
+                return Gdata.AutoExpand
+              end,
+        set = function(Info, Value)
+                Gdata.AutoExpand = Value
+                OptionsTreeData.AutoExpand = false
+                if not Value then
+                  OptionsTreeData.AutoExpandBarType = false
+                  --Options:RefreshMainOptions()
+                end
+              end,
+        disabled = function()
+                     return Gdata.ExpandAll
+                   end,
+      },
+      ExpandAll = {
+        type = 'toggle',
+        width = 'normal',
+        name = 'Expand All',
+        order = 2,
+        get = function()
+                return Gdata.ExpandAll
+              end,
+        set = function(Info, Value)
+                Gdata.ExpandAll = Value
+                --Options:RefreshMainOptions()
+              end,
+        disabled = function()
+                     return Gdata.AutoExpand
+                   end,
+      },
+    },
+  }
+
+  OptionsTreeData.Root[BarType] = OptionsTree
+  OptionsTreeData.Order[BarType] = Order
+  OptionsTreeData.BranchKeys[BarType] = {}
+  TreeGroups[BarType] = OptionsTree
+end
+
+-------------------------------------------------------------------------------
+-- RemoveOptionsTree
+--
+-- Removes the tree and all branches
+-- And the options from TreeGroups
+-------------------------------------------------------------------------------
+local function RemoveOptionsTree(TreeGroups, BarType)
+  if TreeGroups[BarType] then
+
+    -- Remove all branches
+    for TableName in pairs(OptionsTreeData.BranchKeys[BarType]) do
+      TreeGroups[TableName] = nil
+    end
+
+    OptionsTreeData.Root[BarType] = nil
+    OptionsTreeData.Order[BarType] = nil
+    OptionsTreeData.BranchKeys[BarType] = nil
+    OptionsTreeData.AutoExpandBarType = false
+    OptionsTreeData.EnableCount = 0
+    TreeGroups[BarType] = nil
+  end
+end
+
+-------------------------------------------------------------------------------
+-- AddTabGroup
+--
+-- Adds a tab group to an exsiting options tree.
+-- This can be called more than once to add more tabs
+--
+-- BarType               The menu tree of bartype
+-- Order                 Order in the tabs
+-- DialogInline          true or false
+-- Options               Options group
+-------------------------------------------------------------------------------
+local function AddTabGroup(BarType, Order, Name, DialogInline, Options)
+  if Options then
+    local OptionArgs = OptionsTreeData.Root[BarType].args
+
+    Options.dialogInline = DialogInline
+
+    if DialogInline then
+      OptionArgs[Name] = {
+        type = 'group',
+        name = Name,
+        order = Order + 10,
+        args = {
+          TabOptions = Options
+        },
+      }
+    else
+      OptionArgs[Name] = Options
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
+-- AddOptionsBranch
+--
+-- Adds a branch to the options tree
+--
+-- TreeGroups Table containing the tree view on the left
+-- BarType    Tree to add an options branch to
+-- TableName  Keyname to use
+-- Options    Options to be added
+-------------------------------------------------------------------------------
+local function AddOptionsBranch(TreeGroups, BarType, TableName, Options)
+  local Name = Options.name
+  local Gdata = Main.Gdata
+
+  Options.order = OptionsTreeData.Order[BarType] + Options.order / 10000
+
+  -- Add hidden to make tree expand and collapse
+  local Hidden = Options.hidden
+  Options.hidden = function()
+    local Hide = true
+
+    if Gdata.ExpandAll then
+      Hide = false
+    else
+      Hide = OptionsTreeData.AutoExpandBarType ~= BarType
+    end
+    if Hide then
+      return true
+    else
+      return Hidden and Hidden() or Hide
+    end
+  end
+
+  Options.name = function()
+    return format('|cffffffff   %s|r', type(Name) == 'function' and Name() or Name)
+  end
+
+  local BranchTableName = format('%s%s', TableName, BarType)
+  OptionsTreeData.BranchKeys[BarType][BranchTableName] = true
+  TreeGroups[BranchTableName] = Options
+end
+
 --*****************************************************************************
 --
 -- Options creation/setting
@@ -776,7 +1036,7 @@ local function OpenOptions()
   else
     OutOfCombatFrame:RegisterEvent('PLAYER_REGEN_ENABLED')
     OutOfCombatFrame:SetScript('OnEvent', OpenOptionsOOC)
-    print(InCombatOptionsMessage2)
+    print(GD.InCombatOptionsMessage2)
   end
 end
 
@@ -809,7 +1069,7 @@ local function CreateSlashOptions()
         name = 'about',
         order = 2,
         func = function()
-                 print(AddonName, format('Version %.2f', Version / 100))
+                 print(AddonName, format('Version %.2f', GD.Version / 100))
                end,
       },
       config = CreateToGUBOptions(2, '', 'Opens a movable options frame'),
@@ -2858,6 +3118,7 @@ end
 
 local function CreateStanceOptions(BarType, Order, ClassStancesTP, BBar)
   local UBF = UnitBarsF[BarType]
+  local ClassStanceNames = GD.ClassStanceNames
   local PlayerClass = Main.PlayerClass
   local ClassDropdown = {}
   local SelectClassDropdown = {}
@@ -2975,9 +3236,6 @@ local function CreateStanceOptions(BarType, Order, ClassStancesTP, BBar)
             if BBar then
               BBar:CheckTriggers()
             end
-            if BBar == nil then
-              UBF:StatusCheck()
-            end
             UBF:Update()
             if BBar then
               BBar:Display()
@@ -3013,9 +3271,6 @@ local function CreateStanceOptions(BarType, Order, ClassStancesTP, BBar)
                    BBar:CheckTriggers()
                  end
                  UBF:Update()
-                 if BBar == nil then
-                   UBF:StatusCheck()
-                 end
                  if BBar then
                    BBar:Display()
                  end
@@ -3045,9 +3300,6 @@ local function CreateStanceOptions(BarType, Order, ClassStancesTP, BBar)
                    BBar:CheckTriggers()
                  end
                  UBF:Update()
-                 if BBar == nil then
-                   UBF:StatusCheck()
-                 end
                  if BBar then
                    BBar:Display()
                  end
@@ -3207,19 +3459,19 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
     if TypeID == 'border' then
       p2, p3, p4 = nil, nil, nil
       if LSMBorderDropdown[p1] == nil then
-        p1 = DefaultBorderTexture
+        p1 = GD.DefaultBorderTexture
       end
 
     elseif TypeID == 'background' then
       p2, p3, p4 = nil, nil, nil
       if LSMBackgroundDropdown[p1] == nil then
-        p1 = DefaultBgTexture
+        p1 = GD.DefaultBgTexture
       end
 
     elseif TypeID == 'bartexture' then
       p2, p3, p4 = nil, nil, nil
       if LSMStatusBarDropdown[p1] == nil then
-        p1 = DefaultStatusBarTexture
+        p1 = GD.DefaultStatusBarTexture
       end
 
     elseif TypeID == 'texturescale' then
@@ -3265,7 +3517,7 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
       end
     elseif TypeID == 'fonttype' then
       p2, p3, p4 = nil, nil, nil
-      p1 = LSMFontDropdown[p1] or DefaultFontType
+      p1 = LSMFontDropdown[p1] or GD.DefaultFontType
     elseif TypeID == 'fontstyle' then
       p2, p3, p4 = nil, nil, nil
       p1 = FontStyleDropdown[p1] or 'NONE'
@@ -3273,10 +3525,10 @@ local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, T
     elseif TypeID == 'sound' then
       p3, p4 = nil, nil, nil
       if LSMSoundDropdown[p1] == nil then
-        p1 = DefaultSound
+        p1 = GD.DefaultSound
       end
       if TriggerSoundChannelDropdown[p2] == nil then
-        p2 = DefaultSoundChannel
+        p2 = GD.DefaultSoundChannel
       end
     end
     Pars[1], Pars[2], Pars[3], Pars[4] = p1, p2, p3, p4
@@ -5461,7 +5713,6 @@ local function CreateResetOptions(BarType, Order, Name)
                  Main.Reset = true
 
                  UBF:SetAttr()
-                 UBF:StatusCheck()
                  UBF:Update()
 
                  -- Update any text highlights.  Use 'on' since its always on when options are opened.
@@ -5704,7 +5955,7 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
     type = 'group',
     name = function()
              if ClipBoard then
-               return format('%s: |cffffff00%s - %s [ %s ]|r', Name, ClipBoard.BarName or '', ClipBoard.MenuButtonName, ClipBoard.SelectButtonName)
+               return format('|cffffff00%s - %s [ %s ]|r', ClipBoard.BarName or '', ClipBoard.MenuButtonName, ClipBoard.SelectButtonName)
              else
                return Name
              end
@@ -5716,13 +5967,11 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
                 local Arg = Info.arg
 
                 -- Make sure a select button was clicked
-                if Arg then
-                  if ClipBoard then
-                    if Name == 'AppendTriggers' then
-                      return format('Append Triggers from %s to\n%s', DUB[BarType].Name, DUB[ClipBoard.BarType].Name)
-                    elseif Name ~= 'Clear' then
-                      return format('Copy %s [ %s ] to \n%s [ %s ]', ClipBoard.BarName or '', ClipBoard.SelectButtonName, DUB[BarType].Name, Arg.PasteName)
-                    end
+                if Arg and ClipBoard then
+                  if Name == 'AppendTriggers' then
+                    return format('Append Triggers from %s to\n%s', DUB[BarType].Name, DUB[ClipBoard.BarType].Name)
+                  elseif Name ~= 'Clear' then
+                    return format('Copy %s [ %s ] to \n%s [ %s ]', ClipBoard.BarName or '', ClipBoard.SelectButtonName, DUB[BarType].Name, Arg.PasteName)
                   end
                 end
               end,
@@ -5779,7 +6028,6 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
                Main.CopyPasted = true
 
                UBF:SetAttr()
-               UBF:StatusCheck()
                UBF:Update()
 
                Main.CopyPasted = false
@@ -5985,130 +6233,111 @@ end
 --
 -- Subfunction of CreateMainOptions
 --
+-- BarGroups        Menu tree on the left
 -- BarType          Type of options table to create.
 -- Order            Order number for the options.
 -- Name             Name for the option to appear in the tree.
 -- Desc             Description for option.  Set to nil for no description.
 -------------------------------------------------------------------------------
-local function CreateUnitBarOptions(BarType, Order, Name, Desc)
+local function CreateUnitBarOptions(BarGroups, BarType, Order, Name, Desc)
   local UBF = UnitBarsF[BarType]
   local UBD = DUB[BarType]
 
-  local UnitBarOptions = {
-    type = 'group',
-    name = Name,
-    order = Order,
-    desc = Desc,
-    args = {},
-  }
+  -- Create the options root tree and tab groups
+  AddOptionsTree(BarGroups, BarType, Order, Name, Desc)
+  AddTabGroup(BarType, 1, 'Stance',         false, CreateStanceOptions(BarType, 1, 'ClassStances') )
+  AddTabGroup(BarType, 2, 'Status',         false, CreateStatusOptions(BarType, 2, 'Status') )
+  AddTabGroup(BarType, 3, 'Attr',           false, UBD.Attributes and CreateAttributeOptions(BarType, 3, 'Attributes') or nil )
+  AddTabGroup(BarType, 4, 'Reset',          false, CreateResetOptions(BarType, 4, 'Reset') )
+  AddTabGroup(BarType, 5, 'Copy and Paste', true,  CreateCopyPasteOptions(BarType, 5, ' ') )
 
-  local OptionArgs = UnitBarOptions.args
-
-  if UBD.Notes ~= nil then
-    OptionArgs.Notes = {
-      type = 'description',
-      name = UBD.Notes,
-      order = 0.1,
-    }
-  end
-
-  OptionArgs.StanceOptions = CreateStanceOptions(BarType, 0.5, 'ClassStances')
-
-  -- Create Status options.
-  OptionArgs.Status = CreateStatusOptions(BarType, 1, 'Status')
-
-  -- Create Attribute options.
-  if UBD.Attributes then
-    OptionArgs.Attributes = CreateAttributeOptions(BarType, 5, 'Attributes')
-  end
-
-  OptionArgs.Reset = CreateResetOptions(BarType, 6, 'Reset')
-
-  OptionArgs.CopyPaste = CreateCopyPasteOptions(BarType, 7,'Copy and Paste')
 
   -- Add layout options if they exist.
   if UBD.Layout then
-    OptionArgs.Layout = CreateLayoutOptions(BarType, 1000, 'Layout')
+    AddOptionsBranch(BarGroups, BarType, 'Layout', CreateLayoutOptions(BarType, 1000, 'Layout') )
   end
 
   -- Add region options if they exist.
   if UBD.Region then
-    OptionArgs.Border = CreateBackdropOptions(BarType, 'Region', 1001, 'Region')
-    OptionArgs.Border.hidden = function()
-                                 return Flag(true, UBF.UnitBar.Layout.HideRegion)
-                               end
+    local Border = CreateBackdropOptions(BarType, 'Region', 1001, 'Region')
+    Border.hidden = function()
+                      return Flag(true, UBF.UnitBar.Layout.HideRegion)
+                    end
+    AddOptionsBranch(BarGroups, BarType, 'Region', Border)
   end
 
   -- Add tab background options
   -- Combo bar
-  if BarType == 'ComboBar' then
+  local BackgroundOptions = nil
 
-    OptionArgs.Background = {
+  if BarType == 'ComboBar' then
+    BackgroundOptions = {
       type = 'group',
       name = 'Background',
       order = 1002,
       childGroups = 'tab',
     }
-    OptionArgs.Background.args = {
+    BackgroundOptions.args = {
       Combo = CreateBackdropOptions(BarType, 'Background', 1, 'Background'),
     }
-    OptionArgs.Background.hidden = function()
-                                     return not Flag(true, UBF.UnitBar.Layout.BoxMode)
-                                   end
+    BackgroundOptions.hidden = function()
+                                 return not Flag(true, UBF.UnitBar.Layout.BoxMode)
+                               end
   else
     -- Add background options
-    OptionArgs.Background = CreateBackdropOptions(BarType, 'Background', 1002, 'Background')
-    if BarType == 'RuneBar' then
-      OptionArgs.Background.hidden = function()
-                                       return UBF.UnitBar.Layout.RuneMode == 'rune'
-                                     end
-    else
-      OptionArgs.Background.hidden = function()
-                                       return not Flag(true, UBF.UnitBar.Layout.BoxMode)
-                                     end
-    end
+    BackgroundOptions = CreateBackdropOptions(BarType, 'Background', 1002, 'Background')
+    BackgroundOptions.hidden = function()
+                                 return not Flag(true, UBF.UnitBar.Layout.BoxMode)
+                               end
   end
+  AddOptionsBranch(BarGroups, BarType, 'Background', BackgroundOptions)
 
   -- add tab bar options
   -- Combo bar
+  local BarOptions = nil
+
   if BarType == 'ComboBar' then
-    OptionArgs.Bar = {
+    BarOptions = {
       type = 'group',
       name = 'Bar',
       order = 1003,
       childGroups = 'tab',
     }
-    OptionArgs.Bar.args = {
+    BarOptions.args = {
       Combo = CreateBarOptions(BarType, 'Bar', 1, 'Bar'),
     }
-    OptionArgs.Bar.hidden = function()
-                              return not Flag(true, UBF.UnitBar.Layout.BoxMode)
-                            end
+    BarOptions.hidden = function()
+                          return not Flag(true, UBF.UnitBar.Layout.BoxMode)
+                        end
   else
     -- add bar options
-    OptionArgs.Bar = CreateBarOptions(BarType, 'Bar', 1003, 'Bar')
-    OptionArgs.Bar.hidden = function()
-                              return not Flag(true, UBF.UnitBar.Layout.BoxMode)
-                            end
+    BarOptions = CreateBarOptions(BarType, 'Bar', 1003, 'Bar')
+    BarOptions.hidden = function()
+                          return not Flag(true, UBF.UnitBar.Layout.BoxMode)
+                        end
   end
+  AddOptionsBranch(BarGroups, BarType, 'Bar', BarOptions)
 
   -- Add text options
   if UBD.Text ~= nil then
-    OptionArgs.Text = CreateTextOptions(BarType, 'Text', 1004, 'Text')
-    OptionArgs.Text.hidden = function()
-                               return UBF.UnitBar.Layout.HideText
-                             end
+    local TextOptions = nil
+
+    TextOptions = CreateTextOptions(BarType, 'Text', 1004, 'Text')
+    TextOptions.hidden = function()
+                           return UBF.UnitBar.Layout.HideText
+                         end
+    AddOptionsBranch(BarGroups, BarType, 'Text', TextOptions)
   end
 
   -- Add trigger options
   if UBD.Triggers ~= nil then
-    OptionArgs.Triggers = CreateTriggerOptions(BarType, 1005, 'Triggers')
-    OptionArgs.Triggers.hidden = function()
-                                   return not Flag(false, UBF.UnitBar.Layout.EnableTriggers)
-                                 end
-  end
+    local TriggerOptions = CreateTriggerOptions(BarType, 1005, 'Triggers')
 
-  return UnitBarOptions
+    TriggerOptions.hidden = function()
+                              return not Flag(false, UBF.UnitBar.Layout.EnableTriggers)
+                            end
+    AddOptionsBranch(BarGroups, BarType, 'Triggers', TriggerOptions)
+  end
 end
 
 -------------------------------------------------------------------------------
@@ -6120,8 +6349,8 @@ end
 -- BarGroups   Table pointing to where the option bargroups are stored.
 --             If nil then retreives it from the source.
 -------------------------------------------------------------------------------
-function GUB.Options:AddRemoveBarGroups(BarGroups)
-  local BarGroups = BarGroups or MainOptions.args.UnitBars.args
+function GUB.Options:AddRemoveBarGroups()
+  local BarGroups = MainOptions.args.UnitBars.args
   local Order = 0
   local UnitBars = Main.UnitBars
 
@@ -6133,11 +6362,11 @@ function GUB.Options:AddRemoveBarGroups(BarGroups)
 
     if UB.Enabled then
       if BarGroups[BarType] == nil then
-        BarGroups[BarType] = CreateUnitBarOptions(BarType, UB.OptionOrder, UB.Name, UB.OptionText or '')
+        CreateUnitBarOptions(BarGroups, BarType, UB.OptionOrder, UB.Name, UB.OptionText or '')
       end
     else
       Options:DoFunction(BarType, 'clear')
-      BarGroups[BarType] = nil
+      RemoveOptionsTree(BarGroups, BarType)
     end
   end
 end
@@ -6159,6 +6388,15 @@ local function CreateEnableUnitBarOptions(BarGroups, Order, Name, Desc)
     order = Order,
     desc = Desc,
     args = {
+      EnableRefresh = { -- See RefreshEnable()
+        type = 'description',
+        name = function()
+                 RefreshEnable()
+                 return 'EnableRefresh'
+               end,
+        order = 0.1,
+        hidden = true,
+      },
       EnableClass = {
         type = 'toggle',
         name = 'Enable Class Bars',
@@ -6532,12 +6770,12 @@ local function CreatePowerColorOptions(Order, Name)
   local PowerOrder = {}
   local Index = 1
 
-  for PowerType in pairs(PowerColorType) do
+  for PowerType in pairs(ConvertPowerTypeHAP) do
     PowerOrder[Index] = PowerType
     Index = Index + 1
   end
 
-  for PowerType in pairs(PowerColorType) do
+  for PowerType in pairs(ConvertPowerTypeHAP) do
     PowerOrder[Index] = PowerType
     Index = Index + 1
   end
@@ -7297,9 +7535,9 @@ local function CreateMainOptions()
     order = 101,
     childGroups = 'tab',
     args = {
-      HelpText = CreateHelpOptions(1, format('|cffffd200%s   version %.2f|r', AddonName, Version / 100), HelpText),
-      LinksText = CreateHelpOptions(2, 'Links', LinksText),
-      Changes = CreateHelpOptions(3, 'Changes', ChangesText),
+      HelpText = CreateHelpOptions(1, format('|cffffd200%s   version %.2f|r', AddonName, GD.Version / 100), GD.HelpText),
+      LinksText = CreateHelpOptions(2, 'Links', GD.LinksText),
+      Changes = CreateHelpOptions(3, 'Changes', GD.ChangesText),
     },
   }
 
@@ -7550,7 +7788,7 @@ function GUB.Options:OpenAlignSwapOptions(Anchor)
 
     Options.AlignSwapOptionsOpen = true
   else
-    print(InCombatOptionsMessage)
+    print(GD.InCombatOptionsMessage)
   end
 end
 
