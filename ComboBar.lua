@@ -158,7 +158,7 @@ function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerToken)
   ---------------
   -- Set IsActive
   ---------------
-  local ComboPoints = UnitPower('player', PowerPoint)
+  local ComboPoints = GetComboPoints('player', 'target')
 
   self.IsActive = ComboPoints > 0
 
