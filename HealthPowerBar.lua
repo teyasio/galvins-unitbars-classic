@@ -51,6 +51,8 @@ local HapBox = 1
 local HapTFrame = 1
 
 local StatusBar = 10
+local TickerMoverBar = 20
+local TickerBar = 21
 local PredictedCostBar = 40
 
 -- Powertype constants
@@ -406,6 +408,9 @@ local function UpdatePowerBar(self, Event, Unit, PowerToken)
 
     Level = TestMode.UnitLevel
 
+    -- Ticker
+    BBar:SetFillTexture(HapBox, TickerMoverBar, TestMode.Ticker)
+
   -- Just switched out of test mode do a clean up.
   elseif self.Testing then
     self.Testing = false
@@ -417,7 +422,6 @@ local function UpdatePowerBar(self, Event, Unit, PowerToken)
       BBar:SetFillTexture(HapBox, PredictedCostBar, 0)
     end
   end
-
 
   -------
   -- Draw
@@ -595,6 +599,12 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
 
     BBar:SO('Bar', '_Size',                 function(v) BBar:SetSizeTextureFrame(HapBox, HapTFrame, v.Width, v.Height) Display = true end)
     BBar:SO('Bar', 'Padding',               function(v) BBar:SetPaddingTextureFrame(HapBox, HapTFrame, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
+
+-------------------------------------------------------------------------------------------
+    if DBar.TickerColor ~= nil then
+      BBar:SO('Bar', 'TickerStatusBarTexture', function(v) BBar:SetTexture(HapBox, TickerBar, v) end)
+      BBar:SO('Bar', 'TickerColor',            function(v) BBar:SetColorTexture(HapBox, TickerBar, v.r, v.g, v.b, v.a) end)
+    end
   end
 
   -- Do the option.  This will call one of the options above or all.
@@ -628,6 +638,11 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
     BBar:CreateTexture(HapBox, HapTFrame, StatusBar, 'statusbar')
     BBar:CreateTexture(HapBox, HapTFrame, PredictedCostBar)
 
+    -- Create ticker
+    BBar:CreateTexture(HapBox, HapTFrame, TickerMoverBar)
+    BBar:CreateTexture(HapBox, HapTFrame, TickerBar)
+
+
   -- Create font text for the box frame.
   BBar:CreateFont('Text', HapBox)
 
@@ -638,18 +653,26 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetHidden(HapBox, HapTFrame, false)
   BBar:SetHiddenTexture(HapBox, StatusBar, false)
   BBar:SetHiddenTexture(HapBox, PredictedCostBar, false)
+  BBar:SetHiddenTexture(HapBox, TickerBar, false)
 
   BBar:SetFillTexture(HapBox, StatusBar, 0)
   BBar:SetFillTexture(HapBox, PredictedCostBar, 1)
+
+  -- ticker
+  BBar:SetFillTexture(HapBox, TickerMoverBar, 0.50)
+  BBar:SetFillTexture(HapBox, TickerBar, 1)
 
   -- Set this for trigger bar offsets
   BBar:SetOffsetTextureFrame(HapBox, HapTFrame, 0, 0, 0, 0)
 
   -- Set the tagged bars
   BBar:TagTexture(HapBox, StatusBar, PredictedCostBar)
+  BBar:TagTexture(HapBox, TickerMoverBar, TickerBar)
 
-  BBar:SetFillLengthTexture(HapBox, PredictedCostBar, 0)
+  BBar:SetFillLengthTexture(HapBox, PredictedCostBar, 0.25)
+  BBar:SetFillLengthTexture(HapBox, TickerBar, 0.10)
   BBar:TagLeftTexture(HapBox, PredictedCostBar, true)
+
 
   UnitBarF.BBar = BBar
 end

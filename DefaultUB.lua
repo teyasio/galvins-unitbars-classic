@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 112
+GUB.DefaultUB.Version = 113
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -592,6 +592,7 @@ MergeTable(Profile.PlayerPower, {
     PredictedCost = 0.25,
     UnitLevel = 1,
     ScaledLevel = 1,
+    Ticker = 0,
   },
   Layout = {
     EnableTriggers = false,
@@ -639,6 +640,8 @@ MergeTable(Profile.PlayerPower, {
     PredictedCostBarTexture = DefaultStatusBarTexture,
     Color = {r = 0, g = 1, b = 0, a = 1},
     PredictedCostColor = {r = 0, g = 0.447, b = 1, a = 1},
+    TickerStatusBarTexture = DefaultStatusBarTexture,
+    TickerColor = {r = 1, g = 1, b = 0, a = 1},
   },
   Text = {
     _DC = 0,

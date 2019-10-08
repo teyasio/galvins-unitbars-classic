@@ -536,7 +536,7 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe =
 --   _MaxValue            Max value of the bar
 --   _Width               Current width of the SBF
 --   _Height              Current height of the SBF
---   _SparkFrame          Textures created in this frame are always on tops of clipped textures.
+--   _SparkFrame          Textures created in this frame are always on top of clipped textures.
 --                        And don't get clipped
 --   _ScrollFrame
 --   _ContentFrame        ScrollFrame and ContentFrame is how clipping is done.  Any textures
@@ -5739,6 +5739,7 @@ end
 --                        can be the same is if the same texture used in two or more
 --                        different boxes.
 -- TextureType            'cooldown' is the same as texture Except it can use SetCooldownTexture()
+--                        'statusbar' creates a statusbar frame with the texture inside
 --                        if nil then defaults to the type set in CreateTextureFrame()
 --
 -- NOTES:  When creating a texture of type statusbar.  That texture becomes a texture
