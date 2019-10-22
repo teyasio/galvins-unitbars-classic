@@ -1656,12 +1656,6 @@ end
 -------------------------------------------------------------------------------
 function GUB.Main:SetTickerTracker(UnitBarF, Action, ...)
   if UnitBarF == 'reset' then
-    -- Stop all animation
-    if TickerTrackers then
-      for UnitBarF, Fn in pairs(TickerTrackers) do
-        Fn(UnitBarF, 'stop')
-      end
-    end
     TickerTrackers = nil
     TickerFrame.Data = nil
     TickerFrame.PowerTypes = nil
