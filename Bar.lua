@@ -753,20 +753,36 @@ local AnimationType = {
 local ValueLayoutTag = {
   current         = 'value',
   maximum         = 'max',
+  predictedhealth = 'phealth',
+  predictedpower  = 'ppower',
   predictedcost   = 'pcost',
+  absorbhealth    = 'ahealth',
   name            = 'name',
   level           = 'level',
+  time            = 'time',
+  powername       = 'ptext',
+  counter         = 'count',
+  countermin      = 'minc',
+  countermax      = 'maxc',
 }
 
 -- To generate sample text
 local ParValuesTest = {
   current         = 100000,
   maximum         = 200000,
+  predictedhealth = 50000,
+  predictedpower  = 5000,
   predictedcost   = 5000,
+  absorbhealth    = 50000,
   name            = 'Testname',
   name2           = 'Testrealm',
   level           = 100,
   level2          = 99,
+  time            = 1.00,
+  powername       = 'Test text',
+  counter         = 100,
+  countermin      = 1,
+  countermax      = 99,
 }
 
 -- Used to validate each formatted string
@@ -784,7 +800,15 @@ local ValueLayoutTest = {
   realmname = 'string',
   unitnamerealm = 'string',
   unitlevel = 'string',
+  scaledlevel = 'string',
+  unitlevelscaled = 'string',
+  timeSS = 1,
+  timeSS_H = 1,
+  timeSS_HH = 1,
   text = 'string',
+  counter = 1,
+  countermin = 1,
+  countermax = 1,
 }
 
 -- Convert ValueType to a format string
@@ -802,6 +826,11 @@ local GetValueLayout = {
   realmname = '%s',
   unitnamerealm = '%s',
   unitlevel = '%s',
+  scaledlevel = '%s',
+  unitlevelscaled = '%s',
+  timeSS = '%d',
+  timeSS_H = '%.1f',
+  timeSS_HH = '%.2f',
   text = '%s',
 }
 

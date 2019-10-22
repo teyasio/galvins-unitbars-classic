@@ -46,6 +46,7 @@ local UnitExists, UnitName, UnitPowerType, UnitPower, UnitPowerMax =
 -------------------------------------------------------------------------------
 local Display = false
 local Update = false
+local MaxTickerSize = 0.20
 
 local HapBox = 1
 local HapTFrame = 1
@@ -90,6 +91,32 @@ local TD = { -- Trigger data
   { TT.TypeID_Sound,                 TT.Type_Sound }
 }
 
+local TDticker = { -- Trigger data that includes the ticker
+  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,             HapTFrame },
+  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,        HapTFrame,
+    GF = GF },
+  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,         HapTFrame },
+  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,              HapTFrame,
+    GF = GF },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture,                   StatusBar },
+  { TT.TypeID_BarColor,              TT.Type_BarColor,                     StatusBar,
+    GF = GF },
+  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (cost)', PredictedCostBar },
+  { TT.TypeID_BarColor,              TT.Type_BarColor .. ' (cost)',   PredictedCostBar,
+    GF = GF },
+  { TT.TypeID_BarOffset,             TT.Type_BarOffset,                    HapTFrame },
+  { TT.TypeID_BarTextureTicker,      TT.Type_BarTextureTicker,             TickerBar },
+  { TT.TypeID_BarColorTicker,        TT.Type_BarColorTicker,               TickerBar,
+    GF = GF },
+  { TT.TypeID_TextFontColor,         TT.Type_TextFontColor,
+    GF = GF },
+  { TT.TypeID_TextFontOffset,        TT.Type_TextFontOffset },
+  { TT.TypeID_TextFontSize,          TT.Type_TextFontSize },
+  { TT.TypeID_TextFontType,          TT.Type_TextFontType },
+  { TT.TypeID_TextFontStyle,         TT.Type_TextFontStyle },
+  { TT.TypeID_Sound,                 TT.Type_Sound }
+}
+
 local HealthVTs = {'whole',   'Health',
                    'percent', 'Health (percent)',
                    'whole',   'Unit Level',
@@ -99,12 +126,22 @@ local PowerVTs = {'whole',   'Power',
                   'whole',   'Predicted Cost',
                   'whole',   'Unit Level',
                   'auras',   'Auras'           }
+local PowerTickerVTs = {'whole',   'Power',
+                        'percent', 'Power (percent)',
+                        'whole',   'Predicted Cost',
+                        'whole',   'Unit Level',
+                        'float',   'Ticker (time)',
+                        'state',   'Ticker (FSR)',
+                        'auras',   'Auras'           }
 
 local HealthGroups = { -- BoxNumber, Name, ValueTypes,
   {1, '', HealthVTs, TD}, -- 1
 }
 local PowerGroups = { -- BoxNumber, Name, ValueTypes,
   {1, '', PowerVTs, TD}, -- 1
+}
+local PowerTickerGroups = { -- BoxNumber, Name, ValueTypes,
+  {1, '', PowerTickerVTs, TDticker}, --1
 }
 
 -------------------------------------------------------------------------------
@@ -128,9 +165,150 @@ HapFunction('StatusCheck', Main.StatusCheck)
 
 --*****************************************************************************
 --
--- health and Power - predicted cost and initialization
+-- health and Power - predicted cost, print, ticker and initialization
 --
 --*****************************************************************************
+
+-------------------------------------------------------------------------------
+-- PrintValues
+--
+-- Displays the values for power bars
+-------------------------------------------------------------------------------
+local function PrintValues(UnitBarF, BD)
+  local BBar = UnitBarF.BBar
+
+  if not UnitBarF.UnitBar.Layout.HideText then
+    if BD.PredictedCost > 0 then
+      if BD.Time then
+        BBar:SetValueFont(HapBox, 'current', BD.CurrValue, 'maximum', BD.MaxValue, 'predictedcost', BD.PredictedCost, 'time', BD.Time, 'level', BD.Level, 'name', BD.Name, BD.Realm)
+      else
+        BBar:SetValueFont(HapBox, 'current', BD.CurrValue, 'maximum', BD.MaxValue, 'predictedcost', BD.PredictedCost, 'level', BD.Level, 'name', BD.Name, BD.Realm)
+      end
+    else
+      if BD.Time then
+        BBar:SetValueFont(HapBox, 'current', BD.CurrValue, 'maximum', BD.MaxValue, 'time', BD.Time, 'level', BD.Level, 'name', BD.Name, BD.Realm)
+      else
+        BBar:SetValueFont(HapBox, 'current', BD.CurrValue, 'maximum', BD.MaxValue, 'level', BD.Level, 'name', BD.Name, BD.Realm)
+      end
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
+-- SetTickerColor
+--
+-- Sets color of ticker based off test mode or normal mode
+-------------------------------------------------------------------------------
+local function SetTickerColor(UnitBarF, PowerType)
+  local Bar = UnitBarF.UnitBar.Bar
+  local Color = nil
+
+  if PowerType == PowerMana then
+    Color = Bar.TickerColorMana
+  else
+    Color = Bar.TickerColorEnergy
+  end
+  UnitBarF.BBar:SetColorTexture(HapBox, TickerBar, Color.r, Color.g, Color.b, Color.a)
+end
+
+-------------------------------------------------------------------------------
+-- DoTickerTime
+--
+-- Gets called during a ticker
+--
+-- BBar           Current bar being used.
+-- BoxNumber      Current box the call back happened on
+-- Time           Current time
+-- Done           If true then the timer is finished
+-------------------------------------------------------------------------------
+local function DoTickerTime(UnitBarF, BBar, BoxNumber, Time, Done)
+  if not Done then
+    local Layout = UnitBarF.UnitBar.Layout
+
+    if Layout.EnableTriggers then
+      BBar:SetTriggers(BoxNumber, 'ticker (time)', Time)
+      BBar:SetTriggers(HapBox, 'ticker (fsr)', UnitBarF.BarData.Message == 'fsr')
+      BBar:DoTriggers()
+    end
+    UnitBarF.BarData.Time = Time
+  else
+    BBar:SetHiddenTexture(HapBox, TickerBar, true)
+    UnitBarF.BarData.Time = false
+  end
+  PrintValues(UnitBarF, UnitBarF.BarData)
+end
+
+-------------------------------------------------------------------------------
+-- Ticker
+--
+-- Gets called when energy or mana is ticking or five second rule
+-------------------------------------------------------------------------------
+local function Ticker(UnitBarF, Message, PowerType, Duration)
+  local BarType = UnitBarF.BarType
+  local BBar = UnitBarF.BBar
+  local TickTimer = UnitBarF.TickTimer
+  local UB = UnitBarF.UnitBar
+  local Layout = UB.Layout
+
+  if Main.UnitBars.Testing then
+    return
+  end
+
+  -- Check for stop
+  if Message == 'stop' then
+    BBar:SetValueTime(HapBox, DoTickerTime)
+    return
+  end
+
+  if BarType == 'ManaPower' and PowerType ~= PowerMana or
+     BarType == 'PlayerPower' and PowerType ~= UnitPowerType('player') then
+    return
+  end
+
+  if Message == 'fsr' and not Layout.TickerFSR or
+     Message == 'tick' and not Layout.TickerTwoSeconds then
+    return
+  end
+
+  SetTickerColor(UnitBarF, PowerType)
+
+  -- Set message for triggers in DoTickerTime
+  UnitBarF.BarData.Message = Message
+
+  BBar:SetFillTimeTexture(HapBox, TickerMoverBar, nil, Duration, 0, 1)
+
+  BBar:SetValueTime(HapBox, DoTickerTime)
+  BBar:SetHiddenTexture(HapBox, TickerBar, false)
+  BBar:SetValueTime(HapBox, nil, Duration, 1, DoTickerTime)
+end
+
+-------------------------------------------------------------------------------
+-- SetTicker
+--
+-- Turns on the power ticker for energy or mana. Also shows 5 second rule
+--
+-- Usage: SetTicker(UnitBarF, true or false)
+--
+-- UnitBarF   Tracks ticker just for this bar.
+-- true       Turn on ticker other wise turn it off
+-------------------------------------------------------------------------------
+local function SetTicker(UnitBarF, Action)
+  local BarType = UnitBarF.BarType
+  local Command = nil
+
+  if Action then
+    Main:SetTickerTracker(UnitBarF, 'fn', Ticker)
+    Command = 'pt'
+  else
+    Command = 'off'
+  end
+
+  if BarType == 'PlayerPower' then
+    Main:SetTickerTracker(UnitBarF, Command, PowerMana, PowerEnergy)
+  elseif BarType == 'ManaPower' then
+    Main:SetTickerTracker(UnitBarF, Command, PowerMana)
+  end
+end
 
 -------------------------------------------------------------------------------
 -- Casting
@@ -181,6 +359,8 @@ end
 -- true       Turn on predicted cost otherwise turn it off.
 -------------------------------------------------------------------------------
 local function SetPredictedCost(UnitBarF, Action)
+  UnitBarF.BBar:SetHiddenTexture(HapBox, PredictedCostBar, not Action)
+
   if Action then
     Main:SetCastTracker(UnitBarF, 'fn', Casting)
   else
@@ -349,7 +529,7 @@ local function UpdatePowerBar(self, Event, Unit, PowerToken)
     if PowerToken ~= nil and PowerToken ~= PowerType then
       return
     end
-  elseif PowerToken == PowerMana then
+  elseif PowerToken == nil or PowerToken == PowerMana then
     PowerType = PowerMana
   else
     -- Return, not correct power type
@@ -395,6 +575,7 @@ local function UpdatePowerBar(self, Event, Unit, PowerToken)
   local BBar = self.BBar
   local Layout = UB.Layout
   local DLayout = DUB[BarType].Layout
+  local BD = self.BarData
 
   if Main.UnitBars.Testing then
     local TestMode = UB.TestMode
@@ -409,7 +590,27 @@ local function UpdatePowerBar(self, Event, Unit, PowerToken)
     Level = TestMode.UnitLevel
 
     -- Ticker
-    BBar:SetFillTexture(HapBox, TickerMoverBar, TestMode.Ticker)
+    if TestMode.Ticker ~= nil then
+      local TickerEnabled = Layout.TickerEnabled
+
+      if TestMode.TickerFSR then
+        BD.Message = 'fsr'
+      else
+        BD.Message = false
+      end
+
+      BBar:SetHiddenTexture(HapBox, TickerBar, not TickerEnabled)
+      DoTickerTime(self, BBar, HapBox, TestMode.Ticker, not TickerEnabled)
+
+      if TickerEnabled then
+        if BarType == 'ManaPower' or TestMode.TickerMana then
+          SetTickerColor(self, PowerMana)
+        elseif BarType ~= 'ManaPower'  then
+          SetTickerColor(self, TestMode.TickerMana and PowerMana or TestMode.TickerEnergy and PowerEnergy or PowerMana)
+        end
+        BBar:SetFillTexture(HapBox, TickerMoverBar, 1 / 6 * TestMode.Ticker)
+      end
+    end
 
   -- Just switched out of test mode do a clean up.
   elseif self.Testing then
@@ -421,13 +622,17 @@ local function UpdatePowerBar(self, Event, Unit, PowerToken)
     if MaxValue == 0 then
       BBar:SetFillTexture(HapBox, PredictedCostBar, 0)
     end
+
+    if UB.TestMode.Ticker ~= nil then
+      BD.Message = false
+      DoTickerTime(self, BBar, HapBox, nil, true)
+    end
   end
 
   -------
   -- Draw
   -------
   local Bar = UB.Bar
-
   local Name, Realm = UnitName(Unit)
   Name = Name or ''
 
@@ -459,13 +664,14 @@ local function UpdatePowerBar(self, Event, Unit, PowerToken)
   BBar:SetColorTexture(HapBox, StatusBar, r, g, b, a)
   BBar:SetFillTexture(HapBox, StatusBar, Value)
 
-  if not UB.Layout.HideText then
-    if PredictedCost > 0 then
-      BBar:SetValueFont(HapBox, 'current', CurrValue, 'maximum', MaxValue, 'predictedcost', PredictedCost, 'level', Level, 'name', Name, Realm)
-    else
-      BBar:SetValueFont(HapBox, 'current', CurrValue, 'maximum', MaxValue, 'level', Level, 'name', Name, Realm)
-    end
-  end
+  BD.CurrValue     = CurrValue
+  BD.MaxValue      = MaxValue
+  BD.PredictedCost = PredictedCost
+  BD.Level         = Level
+  BD.Name          = Name
+  BD.Realm         = Realm
+
+  PrintValues(self, BD)
 
   -- Check triggers
   if UB.Layout.EnableTriggers then
@@ -518,7 +724,11 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
 
     BBar:SO('Layout', 'EnableTriggers', function(v)
       if strfind(BarType, 'Power') then
-        BBar:EnableTriggers(v, PowerGroups)
+        if BarType == 'PlayerPower' or BarType == 'ManaPower' then
+          BBar:EnableTriggers(v, PowerTickerGroups)
+        else
+          BBar:EnableTriggers(v, PowerGroups)
+        end
       else
         BBar:EnableTriggers(v, HealthGroups)
       end
@@ -556,11 +766,11 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
 
     -- More layout
     if DLayout.PredictedCost ~= nil then
-      BBar:SO('Layout', 'PredictedCost', function(v)
-        BBar:SetHiddenTexture(HapBox, PredictedCostBar, not v)
-        SetPredictedCost(self, v)
-        Update = true
-      end)
+      BBar:SO('Layout', 'PredictedCost', function(v) SetPredictedCost(self, v) Update = true end)
+    end
+
+    if DLayout.TickerEnabled ~= nil then
+      BBar:SO('Layout', 'TickerEnabled', function(v) SetTicker(self, v) Update = true end)
     end
 
     BBar:SO('Background', 'BgTexture',     function(v) BBar:SetBackdrop(HapBox, HapTFrame, v) end)
@@ -579,14 +789,33 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
     end)
 
     BBar:SO('Bar', 'StatusBarTexture',    function(v) BBar:SetTexture(HapBox, StatusBar, v) end)
-    BBar:SO('Bar', 'SyncFillDirection',   function(v) BBar:SyncFillDirectionTexture(HapBox, StatusBar, v) Update = true end)
-    BBar:SO('Bar', 'Clipping',            function(v) BBar:SetClippingTexture(HapBox, StatusBar, v) Update = true end)
-    BBar:SO('Bar', 'FillDirection',       function(v) BBar:SetFillDirectionTexture(HapBox, StatusBar, v) Update = true end)
+    BBar:SO('Bar', 'SyncFillDirection',   function(v)
+      BBar:SyncFillDirectionTexture(HapBox, StatusBar, v)
+      if DBar.TickerColor ~= nil then
+        BBar:SyncFillDirectionTexture(HapBox, TickerMoverBar, v)
+      end
+      Update = true
+    end)
+    BBar:SO('Bar', 'Clipping',            function(v)
+      BBar:SetClippingTexture(HapBox, StatusBar, v)
+      if DBar.TickerColor ~= nil then
+        BBar:SetClippingTexture(HapBox, TickerMoverBar, v)
+      end
+      Update = true
+    end)
+    BBar:SO('Bar', 'FillDirection',       function(v)
+      BBar:SetFillDirectionTexture(HapBox, StatusBar, v)
+      if DBar.TickerColor ~= nil then
+        BBar:SetFillDirectionTexture(HapBox, TickerMoverBar, v)
+      end
+      Update = true
+    end)
     BBar:SO('Bar', 'RotateTexture',       function(v)
-
-
-    BBar:SetRotationTexture(HapBox, StatusBar, v) end)
-
+      BBar:SetRotationTexture(HapBox, StatusBar, v)
+      if DBar.TickerColor ~= nil then
+        BBar:SetRotationTexture(HapBox, TickerMoverBar, v)
+      end
+    end)
     if DBar.PredictedCostColor ~= nil then
       BBar:SO('Bar', 'PredictedCostBarTexture', function(v) BBar:SetTexture(HapBox, PredictedCostBar, v) end)
       BBar:SO('Bar', 'PredictedCostColor',      function(v) BBar:SetColorTexture(HapBox, PredictedCostBar, v.r, v.g, v.b, v.a) end)
@@ -600,10 +829,10 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
     BBar:SO('Bar', '_Size',                 function(v) BBar:SetSizeTextureFrame(HapBox, HapTFrame, v.Width, v.Height) Display = true end)
     BBar:SO('Bar', 'Padding',               function(v) BBar:SetPaddingTextureFrame(HapBox, HapTFrame, v.Left, v.Right, v.Top, v.Bottom) Display = true end)
 
--------------------------------------------------------------------------------------------
-    if DBar.TickerColor ~= nil then
+    if DBar.TickerStatusBarTexture ~= nil then
       BBar:SO('Bar', 'TickerStatusBarTexture', function(v) BBar:SetTexture(HapBox, TickerBar, v) end)
       BBar:SO('Bar', 'TickerColor',            function(v) BBar:SetColorTexture(HapBox, TickerBar, v.r, v.g, v.b, v.a) end)
+      BBar:SO('Bar', 'TickerSize',             function(v) BBar:SetFillLengthTexture(HapBox, TickerBar, MaxTickerSize * v) end)
     end
   end
 
@@ -653,13 +882,12 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:SetHidden(HapBox, HapTFrame, false)
   BBar:SetHiddenTexture(HapBox, StatusBar, false)
   BBar:SetHiddenTexture(HapBox, PredictedCostBar, false)
- -- BBar:SetHiddenTexture(HapBox, TickerBar, false)
 
   BBar:SetFillTexture(HapBox, StatusBar, 0)
   BBar:SetFillTexture(HapBox, PredictedCostBar, 1)
 
   -- ticker
-  BBar:SetFillTexture(HapBox, TickerMoverBar, 0.50)
+  BBar:SetFillTexture(HapBox, TickerMoverBar, 0)
   BBar:SetFillTexture(HapBox, TickerBar, 1)
 
   -- Set this for trigger bar offsets
@@ -670,9 +898,18 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:TagTexture(HapBox, TickerMoverBar, TickerBar)
 
   BBar:SetFillLengthTexture(HapBox, PredictedCostBar, 0.25)
-  BBar:SetFillLengthTexture(HapBox, TickerBar, 0.10)
+  BBar:SetFillLengthTexture(HapBox, TickerBar, MaxTickerSize)
   BBar:TagLeftTexture(HapBox, PredictedCostBar, true)
 
+  local BD = {}
+  UnitBarF.BarData = BD
+  BD.CurrValue     = 0
+  BD.MaxValue      = 0
+  BD.PredictedCost = 0
+  BD.Level         = 0
+  BD.Name          = 0
+  BD.Realm         = 0
+  BD.Time          = false
 
   UnitBarF.BBar = BBar
 end

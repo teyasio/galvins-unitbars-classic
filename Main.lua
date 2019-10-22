@@ -46,12 +46,12 @@ local CreateFrame, IsModifierKeyDown, PetHasActionBar, PlaySound, message, HasPe
       CreateFrame, IsModifierKeyDown, PetHasActionBar, PlaySound, message, HasPetUI, GameTooltip, UIParent
 local C_TimerAfter,  GetShapeshiftFormInfo, GetShapeshiftFormID, GetSpellInfo, GetTalentInfo, GetNumTalents =
       C_Timer.After, GetShapeshiftFormInfo, GetShapeshiftFormID, GetSpellInfo, GetTalentInfo, GetNumTalents
-local UnitAffectingCombat, UnitAura, UnitCanAttack, CastingInfo, UnitClass, UnitExists =
-      UnitAffectingCombat, UnitAura, UnitCanAttack, CastingInfo, UnitClass, UnitExists
+local UnitAffectingCombat, UnitAura, UnitCanAttack, CastingInfo, UnitClass, UnitExists, UnitPower =
+      UnitAffectingCombat, UnitAura, UnitCanAttack, CastingInfo, UnitClass, UnitExists, UnitPower
 local UnitGUID, UnitIsDeadOrGhost, UnitIsPVP, UnitIsTapDenied, UnitPlayerControlled, UnitPowerMax =
       UnitGUID, UnitIsDeadOrGhost, UnitIsPVP, UnitIsTapDenied, UnitPlayerControlled, UnitPowerMax
-local UnitPowerType, UnitReaction, wipe =
-      UnitPowerType, UnitReaction, wipe
+local UnitPowerType, UnitReaction, wipe, CombatLogGetCurrentEventInfo =
+      UnitPowerType, UnitReaction, wipe, CombatLogGetCurrentEventInfo
 local PowerBarColor, RAID_CLASS_COLORS, PlayerFrame, TargetFrame, GetBuildInfo, LibStub =
       PowerBarColor, RAID_CLASS_COLORS, PlayerFrame, TargetFrame, GetBuildInfo, LibStub
 local SoundKit, hooksecurefunc, GetCursorPosition =
@@ -215,6 +215,37 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
+-- Ticker Tracker
+--
+-- Keeps track of the five second rule and enery and mana ticks of 2 seconds each
+--
+--
+-- TickerTrackers[UnitBarF]    - Keeps track of the function to call back
+--   Data[PowerType]           - Data for each power type.
+--     LastValue               - The current last value of energy or mana
+--
+-- TickerTrackerEvent          - Filtrs out the events that are being looked for
+--                                 EventCastSucceeded
+--                                 EventPowerFrequent
+--                                 EventCLEU
+--
+-- Upvalues
+-- TickerFrame                 - Used for batching events before calling OnUpdateTickerFrame
+--                               This is used so when the player casts a spell and gets mana
+--                               used after.  That I know the player spent mana with a spell.
+--                               This will filter out things like mana burn
+--   Data[PowerType]           - Contains data for each power type
+--     LastValue               - LastValue of the player for this powertype
+--   PowerTypes[PowerType]     - Since energy and mana events can happen in the same frame.
+--                               This queues up the power events.  If this is true then
+--                               that power type event happened
+--
+-- FiveSecondRuleEndTime       - if not falue then contains the amount of time the
+--                               5 second rule will take
+-- LastTickTime                - The time of the last tick regen of mana or energy
+-------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
 -- Cast tracker
 --
 -- Keeps track of any spell being cast.
@@ -229,10 +260,12 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --   SpellID                       The spell being cast
 --   CastID                        Unit ID for the current spell cast.
 --
--- CastEvent                   - Filters out the events that are being looked for.
+-- CastTrackerEvent            - Filters out the events that are being looked for.
 --                                 EventCastStart
 --                                 EventCastStop
 --                                 EventCastFailed
+--                                 EventCastSucceeded
+--                                 EventCastDelayed
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
@@ -306,6 +339,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 local AlignAndSwapTooltipDesc = 'Right mouse button to align and swap this bar'
 local MouseOverDesc = 'Modifier + left mouse button to drag this bar'
 local TrackingFrame = CreateFrame('Frame')
+local TickerFrame = CreateFrame('Frame')
 local ScanTooltip = nil
 local AuraListName = 'AuraList'
 local InitOnce = true
@@ -340,6 +374,8 @@ local EventCastSucceeded = 2
 local EventCastDelayed   = 3
 local EventCastStop      = 4
 local EventCastFailed    = 5
+local EventPowerFrequent = 10
+local EventCLEU          = 11
 
 local CastTrackerEvent = {
   UNIT_SPELLCAST_START       = EventCastStart,
@@ -350,12 +386,22 @@ local CastTrackerEvent = {
   UNIT_SPELLCAST_INTERRUPTED = EventCastFailed,
 }
 
+local TickerTrackerEvent = {
+  UNIT_SPELLCAST_SUCCEEDED    = EventCastSucceeded,
+  UNIT_POWER_FREQUENT         = EventPowerFrequent,
+  COMBAT_LOG_EVENT_UNFILTERED = EventCLEU,
+}
+
 local CastTracking = nil
 local CastTrackers = nil
 
 local TrackedAurasOnUpdateFrame = nil
 local TrackedAuras = nil
 local TrackedAurasList = nil
+
+local TickerTrackers = nil
+local FiveSecondRuleEndTime = false
+local LastTickTime = nil
 
 local RegEventFrames = {}
 local RegUnitEventFrames = {}
@@ -421,6 +467,9 @@ local ConvertPowerTypeHAP = {
   -- In InitializeColors() power types in foreign languages added here.
   -- string = number.
 }
+
+local PowerMana = ConvertPowerTypeHAP.MANA
+local PowerEnergy = ConvertPowerTypeHAP.ENERGY
 
 local ConvertCombatColor = {
   Hostile = 1, Attack = 2, Flagged = 3, Friendly = 4,
@@ -510,6 +559,14 @@ local function RegisterEvents(Action, EventType)
     Main:RegEvent(Flag, 'UNIT_SPELLCAST_FAILED',      GUB.TrackCast, 'player')
     Main:RegEvent(Flag, 'UNIT_SPELLCAST_INTERRUPTED', GUB.TrackCast, 'player')
     Main:RegEvent(Flag, 'UNIT_SPELLCAST_DELAYED',     GUB.TrackCast, 'player')
+
+  elseif EventType == 'tickertracker' then
+    local Flag = Action == 'register'
+
+    -- Register events for ticker tracking
+    Main:RegEvent(Flag, 'UNIT_POWER_FREQUENT',                GUB.TrackTicker, 'player')
+    Main:RegEvent(Flag, 'UNIT_SPELLCAST_SUCCEEDED',           GUB.TrackTicker, 'player')
+  --Main:RegEvent(Flag, 'COMBAT_LOG_EVENT_UNFILTERED', GUB.TrackTicker)
   end
 end
 
@@ -1574,6 +1631,84 @@ function GUB.Main:CheckAura(Operator, ...)
 end
 
 -------------------------------------------------------------------------------
+-- SetTickerTracker
+--
+-- Keeps track of the mana and energy ticker
+--
+-- Usage:  SetTickerTracker(UnitBarF, 'fn', Fn)
+--         SetTickerTracker(UnitBarF, 'pt', ...)
+--         SetTickerTracker(UnitBarF, 'off', ...)
+--         SetTickerTracker('reset')
+--
+-- 'fn'          This sets a function to call.  And will automatically receive
+--               ticker data
+-- ...           One or more power types
+--
+-- Fn      This function will get called with the the following pars:
+--           UnitBarF    The bar that called this function
+--           Message     'FSR' Five second rule - mana only
+--                       'tick' energy or mana
+--                       'stop' Stop ticker
+--           PowerType   mana or energy as a number
+--           Duration    The amount of time for the FSR or tick
+--
+-- 'reset' Turns off all tickers
+-------------------------------------------------------------------------------
+function GUB.Main:SetTickerTracker(UnitBarF, Action, ...)
+  if UnitBarF == 'reset' then
+    -- Stop all animation
+    if TickerTrackers then
+      for UnitBarF, Fn in pairs(TickerTrackers) do
+        Fn(UnitBarF, 'stop')
+      end
+    end
+    TickerTrackers = nil
+    TickerFrame.Data = nil
+    TickerFrame.PowerTypes = nil
+  else
+    local TickerTracker = TickerTrackers and TickerTrackers[UnitBarF]
+
+    -- Add power type
+    if Action == 'pt' then
+      for Index = 1, select('#', ...) do
+        local PowerType = select(Index, ...)
+
+        TickerFrame.Data[PowerType] = {
+          LastValue = UnitPower('player', PowerType),
+        }
+      end
+
+    -- Turn ticker tracking on and set FN
+    elseif Action == 'fn' then
+      if TickerTrackers == nil then
+        TickerTrackers = {}
+        TickerFrame.Data = {}
+        TickerFrame.PowerTypes = {}
+      end
+      TickerTrackers[UnitBarF] = ...
+
+    elseif TickerTracker ~= nil then
+      if Action == 'off' then
+        TickerTrackers[UnitBarF] = nil
+      end
+      for Index = 1, select('#', ...) do
+        TickerFrame.Data[select(Index, ...)] = nil
+      end
+    end
+  end
+
+  -- Turn off events if the tracking table is nil or empty
+  if TickerTrackers == nil or next(TickerTrackers) == nil then
+    TickerTrackers = nil
+    TickerFrame.Data = nil
+    TickerFrame.PowerTypes = nil
+    RegisterEvents('unregister', 'tickertracker')
+  elseif TickerTrackers then
+    RegisterEvents('register', 'tickertracker')
+  end
+end
+
+-------------------------------------------------------------------------------
 -- SetCastTracker
 --
 -- Calls a function when a cast has begun and ended.
@@ -1621,7 +1756,7 @@ function GUB.Main:SetCastTracker(UnitBarF, Action, Fn)
       end
 
       if CastTracking == nil then
-        CastTracking = {SpellID =0, CastID = ''}
+        CastTracking = {SpellID = 0, CastID = ''}
       end
 
       CastTracker.Fn = Fn
@@ -2171,7 +2306,6 @@ local function HideUnitBar(UnitBarF, HideBar)
     local BBar = UnitBarF.BBar
 
     if HideBar then
-
       -- Disable cast tracking if active
       Main:SetCastTracker(UnitBarF, 'unregister')
 
@@ -2185,7 +2319,7 @@ local function HideUnitBar(UnitBarF, HideBar)
     else
       UnitBarF.Hidden = false
 
-      -- Disable cast tracking if active
+      -- Enable cast tracking if active
       Main:SetCastTracker(UnitBarF, 'register')
 
       -- Enable Aura tracking if active
@@ -2976,6 +3110,116 @@ function GUB.Main:MoveFrameSetAlignPadding(MoveFrames, PaddingX, PaddingY, Offse
 end
 
 -------------------------------------------------------------------------------
+-- TrackTicker (called by event)
+--
+-- Used by SetTickerTracker()
+--
+-- Calls Fn when ever the ticker restarts
+-------------------------------------------------------------------------------
+local function CLEU(...)
+  if select(8, ...) == PlayerGUID and select(17, ...) == 0 then
+    print('>>', ...)
+  end
+end
+
+local function OnUpdateTickerFrame(self)
+  TickerFrame:SetScript('OnUpdate', nil)
+
+  local Unit, PowerTypes = self.Unit, self.PowerTypes
+
+  -- Parse thru queued power types
+  for PowerType = 0, 5 do
+    if PowerTypes[PowerType] then
+      PowerTypes[PowerType] = false
+
+      local Data = self.Data[PowerType]
+
+      if Data then
+        local CurrValue = UnitPower('player', PowerType)
+        local CurrTime = GetTime()
+        local Duration = nil
+        local Message = nil
+        local LastValue = Data.LastValue
+
+        -- Check for spent
+        local Spent = false
+        if CurrValue < LastValue then
+          Spent = true
+
+        -- Make sure mana is regening.  This event gets called two times
+        -- in a row right after a cast.  So this filters that out
+        elseif CurrValue > LastValue then
+          LastTickTime = CurrTime
+          Duration = 2
+          Message = 'tick'
+        end
+        Data.LastValue = CurrValue
+
+        if PowerType == PowerMana then
+          -- Check for mana usage and start 5 second rule
+          -- Make sure a spell was used and not mana burn, etc
+          if Spent and self.SpellCast then
+            -- Calculate duration based on server tick pulse of 2 seconds
+            if LastTickTime == nil then
+              Duration = 5
+            else
+              local Remainder = (CurrTime - LastTickTime) % 2
+
+              Duration = 6 - Remainder
+              Duration = Duration > 5 and Duration or Duration + 2
+            end
+            FiveSecondRuleEndTime = CurrTime + Duration
+            Message = 'fsr'
+          end
+
+          if FiveSecondRuleEndTime and CurrTime >= FiveSecondRuleEndTime - 0.1 then
+            FiveSecondRuleEndTime = false
+            self.SpellCast = false
+          end
+        end
+        -- Do call back
+        if Duration then
+          for UnitBarF, Fn in pairs(TickerTrackers) do
+            Fn(UnitBarF, Message, PowerType, Duration)
+          end
+        end
+      end
+    end
+  end
+end
+
+local function CLEU(...)
+  -- First 11 pars
+  local TimeStamp, Event, HideCaster, SourceGUID, SourceName, SourceFlags, SourceRaidFlags, DestGUID, DestName, DestFlags, DestRaidFlags = ...
+
+  if PlayerGUID == DestGUID and select(17, ...) == 0 then
+    print('CLEU:', GetTime(), Event)
+  end
+end
+
+-- Batch events, Spell cast and Power frequent happen at the same time
+-- This proves the player used a spell to spend mana
+function GUB:TrackTicker(Event, ...)
+  local TickerEvent = TickerTrackerEvent[Event]
+
+  if TickerEvent == EventCastSucceeded then
+    TickerFrame.SpellCast = true
+    TickerFrame:SetScript('OnUpdate', OnUpdateTickerFrame)
+
+  elseif TickerEvent == EventPowerFrequent then
+    local Unit, PowerToken = ...
+
+    TickerFrame.Unit = Unit
+    TickerFrame.PowerTypes[ ConvertPowerType[PowerToken] ] = true
+    TickerFrame:SetScript('OnUpdate', OnUpdateTickerFrame)
+
+  elseif TickerEvent == EventCLEU then
+    CLEU(CombatLogGetCurrentEventInfo())
+  end
+end
+
+
+-------------------------------------------------------------------------------
 -- TrackCast (called by event)
 --
 -- Used by SetCastTracker()
@@ -3576,6 +3820,7 @@ function GUB.Main:SetUnitBars(ProfileChanged)
 
     -- Reset stuff
     Main:SetAnchorSize('reset')
+    Main:SetTickerTracker('reset')
     Main:SetCastTracker('reset')
     Main:SetAuraTracker('reset')
   end
@@ -3926,8 +4171,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if Gdata.ShowMessage ~= 6 then
-    Gdata.ShowMessage = 6
+  if Gdata.ShowMessage ~= 8 then
+    Gdata.ShowMessage = 8
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

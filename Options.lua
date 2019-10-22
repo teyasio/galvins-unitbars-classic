@@ -106,6 +106,8 @@ local o = {
   TestModeUnitLevelMax = 200,
   TestModePointsMin = 0,
   TestModePointsMax = 5,
+  TestModeTickMin = 0,
+  TestModeTickMax = 6,
 
   -- Animation for all unitbars.
   AnimationOutTime = 1,
@@ -225,6 +227,8 @@ local o = {
   UnitBarSizeMax = 500,
   UnitBarSizeAdvancedMinMax = 25,
 
+  UnitBarTickerSizeMin = 0.02,
+  UnitBarTickerSizeMax = 1,
   RuneOffsetXMin = -50,
   RuneOffsetXMax = 50,
   RuneOffsetYMin = -50,
@@ -331,6 +335,16 @@ local ValueName_PowerDropdown = {
   [99] = 'None',
 }
 
+local ValueName_PowerTickerDropdown = {
+  [1]  = 'Current Value',
+  [2]  = 'Maximum Value',
+  [3]  = 'Predicted Cost',
+  [4]  = 'Name',
+  [5]  = 'Level',
+  [6]  = 'Ticker Time',
+  [99] = 'None',
+}
+
 local ValueName_ManaDropdown = {
   [1]  = 'Current Value',
   [2]  = 'Maximum Value',
@@ -344,7 +358,9 @@ local ValueNameMenuDropdown = {
   all          = ValueName_AllDropdown,
   health       = ValueName_HealthDropdown,
   power        = ValueName_PowerDropdown,
+  powerticker  = ValueName_PowerTickerDropdown,
   mana         = ValueName_ManaDropdown,
+  manaticker   = ValueName_PowerTickerDropdown,
   hap          = ValueName_HapDropdown,
 }
 
@@ -394,6 +410,7 @@ local ValueTypeMenuDropdown = {
   predictedcost   = ValueType_ValueDropdown,
   name            = ValueType_NameDropdown,
   level           = ValueType_LevelDropdown,
+  time            = ValueType_TimeDropdown,
   none            = ValueType_NoneDropdown,
 
   -- prevent error if these values are found.
@@ -408,12 +425,14 @@ local ConvertValueName = {
          predictedcost     = 3,
          name              = 4,
          level             = 5,
+         time              = 6,
          none              = 99,
          'current',         -- 1
          'maximum',         -- 2
          'predictedcost',   -- 3
          'name',            -- 4
          'level',           -- 5
+         'time',            -- 6
   [99] = 'none',            -- 99
 }
 
@@ -427,6 +446,9 @@ local ConvertValueType = {
   thousands_dgroups        = 7,
   millions_dgroups         = 8,
   percent                  = 9,
+  timeSS                   = 20,
+  timeSS_H                 = 21,
+  timeSS_HH                = 22,
   unitname                 = 30,
   realmname                = 31,
   unitnamerealm            = 32,
@@ -441,6 +463,9 @@ local ConvertValueType = {
   [7]  = 'thousands_dgroups',
   [8]  = 'millions_dgroups',
   [9]  = 'percent',
+  [20] = 'timeSS',
+  [21] = 'timeSS_H',
+  [22] = 'timeSS_HH',
   [30] = 'unitname',
   [31] = 'realmname',
   [32] = 'unitnamerealm',
@@ -1706,50 +1731,108 @@ local function CreateBarOptions(BarType, TableName, Order, Name)
     end
   end
 
-  GeneralArgs.Spacer30 = CreateSpacer(30)
+  -- Ticker bar
+  if UBD[TableName].TickerStatusBarTexture ~= nil then
+    GeneralArgs.Spacer30 = CreateSpacer(30)
+
+    GeneralArgs.TickerStatusBarTexture = {
+      type = 'select',
+      name = 'Bar Texture (ticker)',
+      order = 31,
+      dialogControl = 'LSM30_Statusbar',
+      values = LSMStatusBarDropdown,
+    }
+
+    GeneralArgs.Spacer32 = CreateSpacer(32, 'half')
+
+    -- Ticker colors
+    if UBD[TableName].TickerColorMana ~= nil then
+      GeneralArgs.TickerColorMana = {
+        type = 'color',
+        name = function()
+                 if BarType == 'PlayerPower' then
+                   return 'Color (mana ticker)'
+                 else
+                   return 'Color (ticker)'
+                 end
+               end,
+        hasAlpha = true,
+        order = 33,
+      }
+    end
+    GeneralArgs.Spacer34 = CreateSpacer(34)
+    GeneralArgs.Spacer35 = CreateSpacer(35, 'normal')
+    GeneralArgs.Spacer36 = CreateSpacer(35, 'half')
+
+    if UBD[TableName].TickerColorEnergy ~= nil then
+      GeneralArgs.TickerColorEnergy = {
+        type = 'color',
+        name = 'Color (energy ticker)',
+        hasAlpha = true,
+        order = 37,
+      }
+    end
+  end
+
+  GeneralArgs.Spacer40 = CreateSpacer(40)
+
+  if UBD[TableName].TickerSize ~= nil then
+    GeneralArgs.TickerSize = {
+      type = 'range',
+      name = 'Ticker Size',
+      width = 'double',
+      step = 0.01,
+      order = 41,
+      isPercent = true,
+      min = o.UnitBarTickerSizeMin,
+      max = o.UnitBarTickerSizeMax,
+    }
+  end
+
+  GeneralArgs.Spacer80 = CreateSpacer(80)
 
   if UBD[TableName].SyncFillDirection ~= nil then
     GeneralArgs.SyncFillDirection = {
       type = 'toggle',
       name = 'Sync Fill Direction',
-      order = 31,
+      order = 81,
       desc = 'Fill direction changes based on rotation',
     }
   end
 
   if UBD[TableName].Clipping ~= nil then
     if UBD[TableName].SyncFillDirection ~= nil then
-      GeneralArgs.Spacer32 = CreateSpacer(32, 'half')
+      GeneralArgs.Spacer82 = CreateSpacer(82, 'half')
     end
 
     GeneralArgs.Clipping = {
       type = 'toggle',
       name = 'Clipping',
-      order = 33,
+      order = 83,
       desc = 'Texture is clipped instead of being stretched',
     }
   end
-  GeneralArgs.Spacer34 = CreateSpacer(34)
+  GeneralArgs.Spacer84 = CreateSpacer(84)
 
   if UBD[TableName].FillDirection ~= nil then
     GeneralArgs.FillDirection = {
       type = 'select',
       name = 'Fill Direction',
-      order = 35,
+      order = 85,
       values = DirectionDropdown,
       style = 'dropdown',
       disabled = function()
                    return UBF.UnitBar[TableName].SyncFillDirection or false
                  end,
     }
-    GeneralArgs.Spacer36 = CreateSpacer(36, 'half')
+    GeneralArgs.Spacer86 = CreateSpacer(86, 'half')
   end
 
   if UBD[TableName].RotateTexture ~= nil then
     GeneralArgs.RotateTexture = {
       type = 'range',
       name = 'Rotate Texture',
-      order = 37,
+      order = 87,
       min = o.UnitBarRotationMin,
       max = o.UnitBarRotationMax,
       step = 90,
@@ -4778,6 +4861,12 @@ local function CreateTestModeOptions(BarType, Order, Name)
             local TestMode = UBF.UnitBar.TestMode
             TestMode[KeyName] = Value
 
+            if KeyName == 'TickerMana' and Value and TestMode.TickerEnergy then
+              TestMode.TickerEnergy = false
+            elseif KeyName == 'TickerEnergy' and Value and TestMode.TickerMana then
+              TestMode.TickerMana = false
+            end
+
             -- Update the bar to show test mode changes.
             UBF:SetAttr('TestMode', KeyName)
           end,
@@ -4825,16 +4914,36 @@ local function CreateTestModeOptions(BarType, Order, Name)
       max = o.TestModeUnitLevelMax,
     }
   end
+  if UBD.TestMode.TickerFSR ~= nil then
+    TestModeArgs.TickerFSR = {
+      type = 'toggle',
+      name = 'Ticker (FSR)',
+      order = 103,
+    }
+  end
+  if UBD.TestMode.TickerMana ~= nil then
+    TestModeArgs.TickerMana = {
+      type = 'toggle',
+      name = 'Ticker (mana)',
+      order = 104,
+    }
+  end
+  if UBD.TestMode.TickerEnergy ~= nil then
+    TestModeArgs.TickerEnergy = {
+      type = 'toggle',
+      name = 'Ticker (energy)',
+      order = 105,
+    }
+  end
   if UBD.TestMode.Ticker ~= nil then
     TestModeArgs.Ticker = {
       type = 'range',
       name = 'Ticker',
-      order = 103,
+      order = 106,
       step = .01,
       width = 'full',
-      isPercent = true,
-      min = 0,
-      max = 1,
+      min = o.TestModeTickMin,
+      max = o.TestModeTickMax,
     }
   end
   if UBD.TestMode.ComboPoints ~= nil then
@@ -4900,6 +5009,13 @@ local function CreateMoreLayoutOptions(BarType, Order)
             end
 
             Layout[KeyName] = Value
+
+            if KeyName == 'TickerFSR' or KeyName == 'TickerTwoSeconds' then
+              if not Layout.TickerFSR and not Layout.TickerTwoSeconds then
+                Layout[KeyName] = not Value
+              end
+            end
+
             UBF:SetAttr('Layout', KeyName)
 
             if KeyName == 'UseRealMobHealth' then
@@ -4983,6 +5099,39 @@ local function CreateMoreLayoutOptions(BarType, Order)
                  end,
       min = o.LayoutTextureScaleMin,
       max = o.LayoutTextureScaleMax,
+    }
+  end
+  if UBD.Layout.TickerEnabled ~= nil then
+    MoreLayoutArgs.TickerGroup = {
+      type = 'group',
+      name = 'Ticker',
+      order = 11,
+      dialogInline = true,
+      args = {
+        TickerEnabled = {
+          type = 'toggle',
+          name = 'Enable',
+          order = 1,
+          desc = 'Shows a mana or enegery ticker',
+        },
+        Spacer2 = CreateSpacer(2),
+        TickerFSR = {
+          type = 'toggle',
+          name = 'Five Second Rule',
+          order = 3,
+          disabled = function()
+                       return not UBF.UnitBar.Layout.TickerEnabled
+                     end
+        },
+        TickerTwoSeconds = {
+          type = 'toggle',
+          name = 'Two Second Ticks',
+          order = 4,
+          disabled = function()
+                       return not UBF.UnitBar.Layout.TickerEnabled
+                     end
+        },
+      },
     }
   end
 

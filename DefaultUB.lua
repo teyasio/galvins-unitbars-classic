@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 114
+GUB.DefaultUB.Version = 120
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -215,24 +215,26 @@ GUB.DefaultUB.DefaultSoundChannel = DefaultSoundChannel
 GUB.DefaultUB.DefaultFontType = UBFontType
 
 GUB.DefaultUB.TriggerTypes = {
-  TypeID_BackgroundBorder      = 'border',          Type_BackgroundBorder      = 'BG Border',
-  TypeID_BackgroundBorderColor = 'bordercolor',     Type_BackgroundBorderColor = 'BG Border Color',
-  TypeID_BackgroundBackground  = 'background',      Type_BackgroundBackground  = 'BG Background',
-  TypeID_BackgroundColor       = 'backgroundcolor', Type_BackgroundColor       = 'BG Background Color',
-  TypeID_BarTexture            = 'bartexture',      Type_BarTexture            = 'Bar Texture',
-  TypeID_BarColor              = 'bartexturecolor', Type_BarColor              = 'Bar Color',
-  TypeID_TextureScale          = 'texturescale',    Type_TextureScale          = 'Texture Scale',
-  TypeID_BarOffset             = 'baroffset',       Type_BarOffset             = 'Bar Offset',
-  TypeID_TextFontColor         = 'fontcolor',       Type_TextFontColor         = 'Text Font Color',
-  TypeID_TextFontOffset        = 'fontoffset',      Type_TextFontOffset        = 'Text Font Offset',
-  TypeID_TextFontSize          = 'fontsize',        Type_TextFontSize          = 'Text Font Size',
-  TypeID_TextFontType          = 'fonttype',        Type_TextFontType          = 'Text Font Type',
-  TypeID_TextFontStyle         = 'fontstyle',       Type_TextFontStyle         = 'Text Font Style',
-  TypeID_RegionBorder          = 'border',          Type_RegionBorder          = 'Region Border',
-  TypeID_RegionBorderColor     = 'bordercolor',     Type_RegionBorderColor     = 'Region Border Color',
-  TypeID_RegionBackground      = 'background',      Type_RegionBackground      = 'Region Background',
-  TypeID_RegionBackgroundColor = 'backgroundcolor', Type_RegionBackgroundColor = 'Region Background Color',
-  TypeID_Sound                 = 'sound',           Type_Sound                 = 'Sound',
+  TypeID_BackgroundBorder      = 'border',           Type_BackgroundBorder      = 'BG Border',
+  TypeID_BackgroundBorderColor = 'bordercolor',      Type_BackgroundBorderColor = 'BG Border Color',
+  TypeID_BackgroundBackground  = 'background',       Type_BackgroundBackground  = 'BG Background',
+  TypeID_BackgroundColor       = 'backgroundcolor',  Type_BackgroundColor       = 'BG Background Color',
+  TypeID_BarTexture            = 'bartexture',       Type_BarTexture            = 'Bar Texture',
+  TypeID_BarColor              = 'bartexturecolor',  Type_BarColor              = 'Bar Color',
+  TypeID_BarColorTicker        = 'bartexturecolor',  Type_BarColorTicker        = 'Bar Color (ticker)',
+  TypeID_BarTextureTicker      = 'bartexture',       Type_BarTextureTicker      = 'Bar Texture (ticker)',
+  TypeID_TextureScale          = 'texturescale',     Type_TextureScale          = 'Texture Scale',
+  TypeID_BarOffset             = 'baroffset',        Type_BarOffset             = 'Bar Offset',
+  TypeID_TextFontColor         = 'fontcolor',        Type_TextFontColor         = 'Text Font Color',
+  TypeID_TextFontOffset        = 'fontoffset',       Type_TextFontOffset        = 'Text Font Offset',
+  TypeID_TextFontSize          = 'fontsize',         Type_TextFontSize          = 'Text Font Size',
+  TypeID_TextFontType          = 'fonttype',         Type_TextFontType          = 'Text Font Type',
+  TypeID_TextFontStyle         = 'fontstyle',        Type_TextFontStyle         = 'Text Font Style',
+  TypeID_RegionBorder          = 'border',           Type_RegionBorder          = 'Region Border',
+  TypeID_RegionBorderColor     = 'bordercolor',      Type_RegionBorderColor     = 'Region Border Color',
+  TypeID_RegionBackground      = 'background',       Type_RegionBackground      = 'Region Background',
+  TypeID_RegionBackgroundColor = 'backgroundcolor',  Type_RegionBackgroundColor = 'Region Background Color',
+  TypeID_Sound                 = 'sound',            Type_Sound                 = 'Sound',
 
   TypeID_ClassColor  = 'classcolor',  Type_ClassColor  = 'Class Color',
   TypeID_PowerColor  = 'powercolor',  Type_PowerColor  = 'Power Color',
@@ -593,6 +595,9 @@ MergeTable(Profile.PlayerPower, {
     UnitLevel = 1,
     ScaledLevel = 1,
     Ticker = 0,
+    TickerFSR = false,
+    TickerMana = true,
+    TickerEnergy = false,
   },
   Layout = {
     EnableTriggers = false,
@@ -605,6 +610,9 @@ MergeTable(Profile.PlayerPower, {
 
     PredictedCost = true,
     UseBarColor = false,
+    TickerEnabled = false,
+    TickerFSR = true,
+    TickerTwoSeconds = true,
   },
   Attributes = {
     Scale = 1,
@@ -640,12 +648,14 @@ MergeTable(Profile.PlayerPower, {
     PredictedCostBarTexture = DefaultStatusBarTexture,
     Color = {r = 0, g = 1, b = 0, a = 1},
     PredictedCostColor = {r = 0, g = 0.447, b = 1, a = 1},
-    TickerStatusBarTexture = DefaultStatusBarTexture,
-    TickerColor = {r = 1, g = 1, b = 0, a = 1},
+    TickerStatusBarTexture = GUBStatusBarTexture,
+    TickerColorMana   = {r = 0, g = 1, b = 0, a = 1},
+    TickerColorEnergy = {r = 0, g = 1, b = 0, a = 1},
+    TickerSize = 0.25,
   },
   Text = {
     _DC = 0,
-    _ValueNameMenu = 'power',
+    _ValueNameMenu = 'powerticker',
 
     { -- 1
       Custom    = false,
@@ -1257,6 +1267,8 @@ MergeTable(Profile.ManaPower, {
     Value = 0.50,
     PredictedCost = 0.25,
     UnitLevel = 1,
+    Ticker = 0,
+    TickerFSR = false,
   },
   Layout = {
     EnableTriggers = false,
@@ -1269,6 +1281,9 @@ MergeTable(Profile.ManaPower, {
 
     PredictedCost = true,
     UseBarColor = false,
+    TickerEnabled = false,
+    TickerFSR = false,
+    TickerTwoSeconds = true,
   },
   Attributes = {
     Scale = 1,
@@ -1304,10 +1319,13 @@ MergeTable(Profile.ManaPower, {
     PredictedCostBarTexture = DefaultStatusBarTexture,
     Color = {r = 0, g = 1, b = 0, a = 1},
     PredictedCostColor = {r = 0, g = 0.447, b = 1, a = 1},
+    TickerStatusBarTexture = GUBStatusBarTexture,
+    TickerColorMana = {r = 0, g = 1, b = 0, a = 1},
+    TickerSize = 0.25,
   },
   Text = {
     _DC = 0,
-    _ValueNameMenu = 'mana',
+    _ValueNameMenu = 'manaticker',
 
     { -- 1
       Custom    = false,
@@ -1707,6 +1725,9 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+Version 1.20
+|cff00ff00Ticker added to the Player Power and Mana Power bars|r
+
 Version 1.10
 |cff00ff00UI changes for the bar menu|r
 |cff00ff00Auto Expand option added|r Found at the root of each bar menu.  It will expand the menu currently selected
