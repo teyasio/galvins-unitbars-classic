@@ -6307,7 +6307,7 @@ local function CreateUnitBarOptions(BarGroups, BarType, Order, Name, Desc)
   local BarOptions = nil
 
   if BarType == 'ComboBar' then
-    BarOptions = CreateBarOptions(BarType, 'Bar', 1, 'Bar')
+    BarOptions = CreateBarOptions(BarType, 'Bar', 1003, 'Bar')
     BarOptions.hidden = function()
                           return not Flag(true, UBF.UnitBar.Layout.BoxMode)
                         end

@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 122
+GUB.DefaultUB.Version = 123
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
