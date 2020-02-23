@@ -75,7 +75,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --
 -- UnitBarsParent
 --   Anchor
---     AnchorPointFrame
+--     AnimationFrame
 --       AlphaFrame
 --         ScaleFrame
 --           <Unitbar frames start here>
@@ -96,13 +96,11 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --     UnitBarF               - Reference to UnitBarF for selectframe or animation.
 --     Name                   - Name of the UnitBar.  This is used by the align and swap options which uses MoveFrameStart()
 --     Width, Height          - Size of the anchor
---     AnchorPointFrame       - Reference to AnchorPointFrame
+--     AnimationFrame         - Reference to the AnimationFrame
 --
---   AlphaFrame               - Child of Anchor.  Controls the transparency of the bar. Used by UnitBarSetAttr()
+--   AnimationFrame           - Child of Anchor.  Used by animation groups to scale or fade the unitbars
+--   AlphaFrame               - Child of AnimationFrame.  Controls the transparency of the bar. Used by UnitBarSetAttr()
 --   ScaleFrame               - Child of AlphaFrame.  Controls scaling of bars to be made larger or smaller thru SetScale().
---   AnchorPointFrame         - Allows the bar to have different points, without causing the anchor to move.
---     Width, Height          - Size of the AnchorPointFrame
---
 --
 -- UnitBarsF has methods which make changing the state of a bar easier.  This is done in the form of
 -- UnitBarsF[BarType]:MethodCall().  BarType is used through out the mod.  Its the type of bar being referenced.
@@ -182,7 +180,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- MouseOverDesc          - Mouse over tooltip displayed to drag bar.
 -- UnitBarVersion         - Current version of the mod.
 -- AlignAndSwapTooltipDesc - Tooltip to be shown when the alignment tool is active.
--- AnchorOffset           - Table used when changing the Anchor size.  Used by SetAnchorSize()
+-- AnchorPosition         - Table used when changing the Anchor size.  Used by SetAnchorPoint() and SetAnchorSize()
 --
 -- InCombat               - True or false. If true then the player is in combat.
 -- InPetBattle            - True or false. If true then the player is in a pet battle.
@@ -435,16 +433,16 @@ local DialogBorder = {
   }
 }
 
-local AnchorOffset = {
-  LEFT         = {x =  0,   y =  0.5},
-  RIGHT        = {x = -1,   y =  0.5},
-  TOP          = {x = -0.5, y =  0  },
-  BOTTOM       = {x = -0.5, y =  1  },
-  TOPLEFT      = {x =  0,   y =  0  },
-  TOPRIGHT     = {x = -1,   y =  0  },
-  BOTTOMLEFT   = {x =  0,   y =  1  },
-  BOTTOMRIGHT  = {x = -1,   y =  1  },
-  CENTER       = {x = -0.5, y =  0.5},
+local AnchorPosition = {
+  LEFT         = {x = 0,   y =  -0.5},
+  RIGHT        = {x = 1,   y =  -0.5},
+  TOP          = {x = 0.5, y =   0  },
+  BOTTOM       = {x = 0.5, y =  -1  },
+  TOPLEFT      = {x = 0,   y =   0  },
+  TOPRIGHT     = {x = 1,   y =   0  },
+  BOTTOMLEFT   = {x = 0,   y =  -1  },
+  BOTTOMRIGHT  = {x = 1,   y =  -1  },
+  CENTER       = {x = 0.5, y =  -0.5},
 }
 
 local ConvertPowerType = {
@@ -1155,6 +1153,9 @@ end
 --        When a table is empty cause everything was removed or moved out of it'll then be deleted.
 -------------------------------------------------------------------------------
 local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey, KeyFound)
+  if Ver == 1 then
+    SourceUB[KeyFound].AnchorPoint = 'TOPLEFT'
+  end
 end
 
 local function ConvertUnitBarData(Ver)
@@ -1162,9 +1163,12 @@ local function ConvertUnitBarData(Ver)
   local ConvertUBData = nil
 
   -- Put tables here when this is needed again
+  local ConvertUBData1 = {
+    {Action = 'custom',    Source = '',                                 '=Attributes'},
+  }
 
   if Ver == 1 then -- First time conversion
-    -- Add code here when this is needed again
+    ConvertUBData = ConvertUBData1
   end
 
   for BarType, UBF in pairs(UnitBarsF) do
@@ -1349,30 +1353,35 @@ end
 -- SetAnchorPoint
 --
 -- Usage: SetAnchorPoint(Anchor)
---          Recalculates the anchor point at its new screen location.
+--          Recalculates the anchor point at its new screen location. Without moving the bar
 --        SetAnchorPoint(Anchor, 'UB')
---          Use the anchor at the unitbar x,y value.
+--          Set the anchor at the unitbar x, y value.
 --        SetAnchorPoint(Anchor, x, y)
---          Moves the anchor position on its current point or a new point.
+--          Moves the anchor position on its current point.
 -------------------------------------------------------------------------------
 function GUB.Main:SetAnchorPoint(Anchor, x, y)
 
   local UB = Anchor.UnitBar
-  local AnchorPointFrame = Anchor.AnchorPointFrame
+  local AnchorPoint = UB.Attributes.AnchorPoint
 
   if x == nil then
+    -- Setting anchor point without moving the bar
+    local Scale = UB.Attributes.Scale
+
     x, y = Bar:GetRect(Anchor)
+    local AnchorPos = AnchorPosition[AnchorPoint]
+
+    -- Offset by -1 so bar doesn't shift 1 pixel
+    -- Need to scale width and height since its unscaled
+    x = x + (Anchor._Width * Scale - 1) * AnchorPos.x
+    y = y + (Anchor._Height * Scale - 1) * AnchorPos.y
+
   elseif x == 'UB' then
     x, y = UB.x, UB.y
   end
 
   Anchor:ClearAllPoints()
-  Anchor:SetPoint('TOPLEFT', x, y)
-
-  if not Anchor.IsScaling then
-    AnchorPointFrame:ClearAllPoints()
-    AnchorPointFrame:SetPoint(UB.Attributes.AnchorPoint)
-  end
+  Anchor:SetPoint(AnchorPoint, x, y)
 
   UB.x, UB.y = x, y
 end
@@ -1383,9 +1392,9 @@ end
 -- Sets the width and height for a unitbar.
 --
 -- Usage:  SetAnchorSize('reset')
---           Resets the size of all anchors and anchorpointframes.
+--           Resets the size of all anchors.
 --         SetAnchorSize(Anchor, Width, Height) or
---         SetAnchorSize(Anchor, Width, Height, OffsetX, OffsetY)
+--         SetAnchorSize(Anchor, Width, Height, OffsetX, OffsetY, Float)
 --
 -- Width       Set width of the unitbar. if Width is nil then current width is used.
 -- Height      Set height of the unitbar.
@@ -1395,11 +1404,13 @@ end
 --             This changes the size of the frame without moving the objects inside
 --             of it.
 --
+-- Float       True or False. Only used for floating mode to resize the anchor without moving it.
+--             This is used by Display() in bar.lua
+--
 -- NOTE:  This accounts for scale.  Width and Height must be unscaled when passed.
---        When using OffsetX and Y.
+--        When using OffsetX and Y. This also sets the size of the AnimationFrame
 -------------------------------------------------------------------------------
-function GUB.Main:SetAnchorSize(Anchor, Width, Height, OffsetX, OffsetY)
-  local AnchorPointFrame = Anchor.AnchorPointFrame
+function GUB.Main:SetAnchorSize(Anchor, Width, Height, OffsetX, OffsetY, Float)
 
   -- Reset size
   if Anchor == 'reset' then
@@ -1407,12 +1418,8 @@ function GUB.Main:SetAnchorSize(Anchor, Width, Height, OffsetX, OffsetY)
       local Anchor = UBF.Anchor
 
       if Anchor then
-        local AnchorPointFrame = UBF.AnchorPointFrame
-
         Anchor._Width = nil
         Anchor._Height = nil
-        AnchorPointFrame._Width = nil
-        AnchorPointFrame._Height = nil
       end
     end
     return
@@ -1420,9 +1427,15 @@ function GUB.Main:SetAnchorSize(Anchor, Width, Height, OffsetX, OffsetY)
 
   -- Get Unitbar data and anchor
   local UB = Anchor.UnitBar
-  local Scale = UB.Attributes.Scale
+  local Attr = UB.Attributes
+  local Scale = Attr.Scale
+  local SizeChanged = false
 
   if Width then
+   if Float then
+      -- Check for size change to 2 decimal places
+      SizeChanged = format('%.2f', Anchor._Width) ~= format('%.2f', Width) or format('%.2f', Anchor._Height) ~= format('%.2f', Height)
+    end
     Anchor._Width = Width
     Anchor._Height = Height
   else
@@ -1435,37 +1448,20 @@ function GUB.Main:SetAnchorSize(Anchor, Width, Height, OffsetX, OffsetY)
   Width = Width * Scale
   Height = Height * Scale
 
-  if Anchor._Width then
-    local APWidth = AnchorPointFrame._Width
-    local APHeight = AnchorPointFrame._Height
+  if Float and SizeChanged then
+    -- Get TOPLEFT point of the frame
+    local x, y = Bar:GetRect(Anchor)
+    local AnchorPos = AnchorPosition[Attr.AnchorPoint]
 
-    if APWidth then
-      if Width ~= APWidth or Height ~= APHeight then
-        local DiffX = Width - APWidth
-        local DiffY = Height - APHeight
-        local AnchorPoint = UB.Attributes.AnchorPoint
-
-        --If offsetting then fake TOPLEFT
-        if OffsetX then
-          AnchorPoint = 'TOPLEFT'
-        end
-
-        local Offset = AnchorOffset[AnchorPoint]
-
-        AnchorPointFrame._Width = Width
-        AnchorPointFrame._Height = Height
-
-        UB.x = UB.x + DiffX * Offset.x + (OffsetX or 0) * Scale
-        UB.y = UB.y + DiffY * Offset.y + (OffsetY or 0) * Scale
-      end
-    else
-      AnchorPointFrame._Width = Width
-      AnchorPointFrame._Height = Height
-    end
+    -- Get the new x, y location for the current AnchorPoint
+    -- Offsets have to be scaled
+    -- (width and height minus 1 is to account for 1 pixel bar shift)
+    UB.x = x + OffsetX * Scale + (Width - 1) * AnchorPos.x
+    UB.y = y + OffsetY * Scale + (Height - 1) * AnchorPos.y
   end
 
   Anchor:SetSize(Width, Height)
-  AnchorPointFrame:SetSize(Width, Height)
+  Anchor.AnimationFrame:SetSize(Width, Height)
 
   Main:SetAnchorPoint(Anchor, UB.x, UB.y)
 
@@ -3729,7 +3725,7 @@ local function CreateUnitBar(UnitBarF, BarType)
 
     -- This is needed because the runebar wouldn't show textures correctly
     -- after reloadui
-    Anchor:SetPoint('TOPLEFT')
+    Anchor:SetPoint(UB.Attributes.AnchorPoint)
     Anchor:SetSize(1, 1)
 
     -- Save a lookback to UnitBarF in anchor for selection (selectframe)
@@ -3743,14 +3739,12 @@ local function CreateUnitBar(UnitBarF, BarType)
     -- Get name for align and swap.
     Anchor.Name = UnitBars[BarType].Name
 
-    -- Create placement frame.
-    local AnchorPointFrame = CreateFrame('Frame', nil, Anchor)
-    AnchorPointFrame:SetPoint('TOPLEFT')
-    AnchorPointFrame:SetSize(1, 1)
-    Anchor.AnchorPointFrame = AnchorPointFrame
+    -- Create the animation frame.
+    local AnimationFrame = CreateFrame('Frame', nil, Anchor)
+    AnimationFrame:SetPoint('CENTER')
 
     -- Create the alpha frame.
-    local AlphaFrame = CreateFrame('Frame', nil, AnchorPointFrame)
+    local AlphaFrame = CreateFrame('Frame', nil, AnimationFrame)
     AlphaFrame:SetPoint('TOPLEFT')
     AlphaFrame:SetSize(1, 1)
 
@@ -3760,8 +3754,9 @@ local function CreateUnitBar(UnitBarF, BarType)
     ScaleFrame:SetSize(1, 1)
 
     -- Save the frames.
+    Anchor.AnimationFrame = AnimationFrame
     UnitBarF.Anchor = Anchor
-    UnitBarF.AnchorPointFrame = AnchorPointFrame
+    UnitBarF.AnimationFrame = AnimationFrame
     UnitBarF.AlphaFrame = AlphaFrame
     UnitBarF.ScaleFrame = ScaleFrame
 
@@ -4064,12 +4059,10 @@ function GUB:ApplyProfile()
   -- Share the values with other parts of the addon.
   ShareData()
 
-  --[[ -- For reference
-  if Ver == nil then
-    -- Convert profile from preversion 200.
+  if Ver == nil or Ver < 121 then -- 1.21
     ConvertUnitBarData(1)
   end
-  if Ver == nil or Ver < 300 then
+  --[[ if Ver == nil or Ver < 300 then
     -- Convert profile from a version before 3.00
     ConvertUnitBarData(2)
   end ]]
@@ -4165,8 +4158,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if Gdata.ShowMessage ~= 8 then
-    Gdata.ShowMessage = 8
+  if Gdata.ShowMessage ~= 9 then
+    Gdata.ShowMessage = 9
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

@@ -1280,10 +1280,10 @@ end
 --        Return values are not scaled.
 --
 -- returns:
---   Left     < 0 then outside the parent frame.
---   Top      > 0 then outside the parent frame.
+--   OffsetX  < 0 then outside the parent frame.
+--   OffsetY  > 0 then outside the parent frame.
 --   width    Total width that covers the child frames.
---   height   Total height that covers the child drames.
+--   height   Total height that covers the child frames.
 -------------------------------------------------------------------------------
 local function GetBoundsRect(ParentFrame, Frames)
   local Left = nil
@@ -1571,7 +1571,7 @@ end
 --
 -- BoxNumber            BoxFrame to enable for mouse.
 -- TextureFrameNumber   If not nil then TextureFrame will be used instead.
--- Enable               If true thne the frame can interact with the mouse.
+-- Enable               If true then the frame can interact with the mouse.
 -------------------------------------------------------------------------------
 function BarDB:EnableMouseClicks(BoxNumber, TextureFrameNumber, Enable)
   repeat
@@ -2645,7 +2645,7 @@ local function GetAnimation(BarDB, Object, GroupType, Type)
     if GroupType == 'parent' or Type == 'move' or Type == 'offset' or Type == 'fontsize' or Type == 'texturescale' then
       AGroup = CreateFrame('Frame'):CreateAnimationGroup()
       if Object.IsAnchor then
-        OnObject = Object.AnchorPointFrame
+        OnObject = Object.AnimationFrame
       else
         OnObject = Object
       end
@@ -2777,13 +2777,11 @@ local function StopAnimation(AGroup, ReverseAnimation)
 
       elseif Type == 'scale' then
         Object:SetScale(1)
-
         if OnObject then
 
           -- Restore anchor
           if Object.IsAnchor then
-            Object.IsScaling = false
-            Main:SetAnchorPoint(Object, 'UB')
+            -- AnimationFrame needs no restorting. Leave here for reference
           end
           OnObject:SetScale(1)
         end
@@ -3088,11 +3086,8 @@ local function PlayAnimation(AGroup, ...)
       if OnObject then
 
         -- Object is Anchor
-        -- IsScaling tells SetAnchorPoint() not to change the AnchorPointFrame point
         if Object.IsAnchor then
-          Object.IsScaling = true
-          OnObject:ClearAllPoints()
-          OnObject:SetPoint('CENTER')
+          -- AnimationFrame is already centered.  Leave this here for reference
         end
         OnObject:SetScale(0.01)
         AGroup:SetScript('OnUpdate', OnObjectScale)
@@ -3380,7 +3375,7 @@ local function OnUpdate_Display(self)
       -- Skip offsetting when switching to floating mode first time.
       if not FloatFirstTime then
 
-        Main:SetAnchorSize(Anchor, Width, Height, OffsetX + BorderPadding * -1, OffsetY + BorderPadding)
+        Main:SetAnchorSize(Anchor, Width, Height, OffsetX + BorderPadding * -1, OffsetY + BorderPadding, true)
         SetSize = false
       end
     else

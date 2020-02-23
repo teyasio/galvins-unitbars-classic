@@ -1725,6 +1725,9 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+Version 1.21
+Code changes applied from retail version 6.49
+
 Version 1.20
 |cff00ff00Ticker added to the Player Power and Mana Power bars|r
 
