@@ -113,7 +113,6 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --   Enable()             - Disables events if passed true otherwise enables events.
 --   StatusCheck()        - All bars have flags that determin if a bar should be visible in combat or never shown.
 --                          When this gets called the bar checks the flags to see if the bar should change its state.
---   EnableMouseClicks()  - Enable or disable mouse interaction with the bar.
 --   SetAttr()            - This sets the layout and different parts of the bar. Color, size, font, etc.
 --   BarVisible()         - This is used by StatusCheck() to determin if a bar should be hidden.
 --
@@ -1362,11 +1361,12 @@ end
 function GUB.Main:SetAnchorPoint(Anchor, x, y)
 
   local UB = Anchor.UnitBar
-  local AnchorPoint = UB.Attributes.AnchorPoint
+  local Attr = UB.Attributes
+  local AnchorPoint = Attr.AnchorPoint
 
   if x == nil then
     -- Setting anchor point without moving the bar
-    local Scale = UB.Attributes.Scale
+    local Scale = Attr.Scale
 
     x, y = Bar:GetRect(Anchor)
     local AnchorPos = AnchorPosition[AnchorPoint]
@@ -1455,7 +1455,7 @@ function GUB.Main:SetAnchorSize(Anchor, Width, Height, OffsetX, OffsetY, Float)
 
     -- Get the new x, y location for the current AnchorPoint
     -- Offsets have to be scaled
-    -- (width and height minus 1 is to account for 1 pixel bar shift)
+    -- (width and height minus 1) is to account for 1 pixel bar shift
     UB.x = x + OffsetX * Scale + (Width - 1) * AnchorPos.x
     UB.y = y + OffsetY * Scale + (Height - 1) * AnchorPos.y
   end
@@ -2435,21 +2435,19 @@ function GUB.Main:StatusCheck(Event)
   -- Need to check enabled here cause when a bar gets enabled its layout gets set.
   -- Causing this function to get called even if the bar is disabled.
   if UB.Enabled then
-    local Status = UB.Status
     local Hide = false
-    local ClassStanceEnabled = false
+    -- Always show bars if show or testing
+    if not UnitBars.Show and not UnitBars.Testing then
+      local Status = UB.Status
+      local ClassStanceEnabled = false
 
-    ClassStanceEnabled = Main:CheckPlayerStances(self.BarType, UB.ClassStances)
-    self.ClassStanceEnabled = ClassStanceEnabled
+      ClassStanceEnabled = Main:CheckPlayerStances(self.BarType, UB.ClassStances)
+      self.ClassStanceEnabled = ClassStanceEnabled
 
-    if not ClassStanceEnabled then
-      Hide = true
+      if not ClassStanceEnabled then
+        Hide = true
 
-    -- Show bars if not locked or testing.
-    elseif UnitBars.IsLocked or not UnitBars.Testing then
-      -- Continue if show always is false.
-      if not Status.ShowAlways then
-
+      elseif not Status.ShowAlways then
         -- Check to see if the bar has an enable function and call it.
         local Fn = self.BarVisible
         if Fn then
@@ -2757,10 +2755,16 @@ local function MoveFrameGetNearestFrame(TrackingFrame)
     end
   end
 
-  if MoveSelectFrame == nil and not UnitBars.HideLocationInfo and not UnitBars.HideTooltipsDesc then
-    local x, y = Bar:GetRect(MoveFrame)
+ if MoveSelectFrame == nil and not UnitBars.HideLocationInfo then
+    local Locked = UnitBars.Locked
 
-    Main:ShowTooltip(MoveFrame, false, '', format('%d, %d', floor(x + 0.5), floor(y + 0.5)))
+    if not (UnitBars.HideTooltipsLocked and Locked or UnitBars.HideTooltipsNotLocked and not Locked) then
+      local x, y = Bar:GetRect(MoveFrame)
+
+      GameTooltip:SetOwner(MoveFrame, 'ANCHOR_TOPRIGHT')
+      GameTooltip:AddLine(format('%d, %d', floor(x + 0.5), floor(y + 0.5)), 1, 1, 1)
+      GameTooltip:Show()
+    end
   end
 end
 
@@ -3462,7 +3466,7 @@ end
 -------------------------------------------------------------------------------
 -- UnitBarStartMoving
 --
--- If UnitBars.IsGrouped is true then the unitbar parent frame will be moved.
+-- If UnitBars.Grouped is true then the unitbar parent frame will be moved.
 -- Otherwise just the unitbar frame will be moved.
 --
 -- Note: To move a frame the unitbars anchor needs to be moved.
@@ -3479,7 +3483,7 @@ function GUB.Main:UnitBarStartMoving(Frame, Button)
   if Button == 'LeftButton' and IsModifierKeyDown() then
     -- Set the moving flag.
     -- Group move check.
-    if UnitBars.IsGrouped then
+    if UnitBars.Grouped then
       UnitBarsParent.IsMoving = true
       UnitBarsParent:StartMoving()
     else
@@ -3582,8 +3586,10 @@ end
 -------------------------------------------------------------------------------
 function GUB.Main:UnitBarsSetAllOptions(Action)
   local ATOFrame = Options.ATOFrame
-  local IsLocked = UnitBars.IsLocked
-  local IsClamped = UnitBars.IsClamped
+  local HideTooltips = UnitBars.HideTooltips
+  local Locked = UnitBars.Locked
+  local EnableTooltips = not (UnitBars.HideTooltipsLocked and Locked or UnitBars.HideTooltipsNotLocked and not Locked)
+  local Clamped = UnitBars.Clamped
   local AnimationOutTime = UnitBars.AnimationOutTime
   local AnimationInTime = UnitBars.AnimationInTime
 
@@ -3597,15 +3603,24 @@ function GUB.Main:UnitBarsSetAllOptions(Action)
     end
 
     -- Update alignment tool status.
-    if IsLocked or not UnitBars.AlignAndSwapEnabled then
+    if Locked or not UnitBars.AlignAndSwapEnabled then
       Options:CloseAlignSwapOptions()
     end
 
     -- Apply the settings.
     for _, UBF in ipairs(UnitBarsFE) do
       local BBar = UBF.BBar
-      UBF:EnableMouseClicks(not IsLocked)
-      UBF.Anchor:SetClampedToScreen(IsClamped)
+      local UB = UBF.UnitBar
+
+      BBar:EnableDragBox(0, not Locked)
+      BBar:EnableTooltipsBox(0, EnableTooltips)
+
+      if UB.Region ~= nil then
+        BBar:EnableDragRegion(not Locked)
+        BBar:EnableTooltipsRegion(EnableTooltips)
+      end
+
+      UBF.Anchor:SetClampedToScreen(Clamped)
 
       SetAnimationTypeUnitBar(UBF)
       BBar:SetAnimationDurationBar('out', AnimationOutTime)
@@ -3742,6 +3757,7 @@ local function CreateUnitBar(UnitBarF, BarType)
     -- Create the animation frame.
     local AnimationFrame = CreateFrame('Frame', nil, Anchor)
     AnimationFrame:SetPoint('CENTER')
+    AnimationFrame:SetSize(1, 1)
 
     -- Create the alpha frame.
     local AlphaFrame = CreateFrame('Frame', nil, AnimationFrame)
@@ -4158,8 +4174,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if Gdata.ShowMessage ~= 9 then
-    Gdata.ShowMessage = 9
+  if Gdata.ShowMessage ~= 10 then
+    Gdata.ShowMessage = 10
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end

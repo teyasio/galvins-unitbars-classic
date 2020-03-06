@@ -694,15 +694,6 @@ Main.UnitBarsF.ManaPower.Update   = UpdatePowerBar
 --
 --*****************************************************************************
 
-------------------------------------------------------------------------------
--- EnableMouseClicks
---
--- This will enable or disbale mouse clicks for the rune icons.
--------------------------------------------------------------------------------
-HapFunction('EnableMouseClicks', function(self, Enable)
-  self.BBar:EnableMouseClicks(HapBox, nil, Enable)
-end)
-
 -------------------------------------------------------------------------------
 -- SetAttr
 --
@@ -876,7 +867,7 @@ function GUB.HapBar:CreateBar(UnitBarF, UB, ScaleFrame)
   BBar:CreateFont('Text', HapBox)
 
   -- Enable tooltip
-  BBar:SetTooltip(HapBox, nil, UB.Name)
+  BBar:SetTooltipBox(HapBox, UB.Name)
 
   -- Show the bar.
   BBar:SetHidden(HapBox, HapTFrame, false)

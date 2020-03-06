@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 123
+GUB.DefaultUB.Version = 125
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -20,10 +20,10 @@ GUB.DefaultUB.Version = 123
 -- RelativePoint          - Relative point of UIParent for UnitBarsParent.
 -- Px, Py                 - The current location of the UnitBarsParent on the screen.
 -- EnableClass            - Boolean. If true all unitbars get enabled for your class only.
--- IsGrouped              - Boolean. If true all unitbars get dragged as one object.
+-- Grouped                - Boolean. If true all unitbars get dragged as one object.
 --                                         If false each unitbar can be dragged by its self.
--- IsLocked               - Boolean. If true all unitbars can not be clicked on.
--- IsClamped              - Boolean. If true all frames can't be moved off screen.
+-- Locked                 - Boolean. If true all unitbars can not be clicked on.
+-- Clamped                - Boolean. If true all frames can't be moved off screen.
 -- Testing                - Boolean. If true the bars are currently in test mode.
 -- BarFillFPS             - Controls the frame rate of statusbar fill animation for timer bars and smooth fill.
 --                          Higher values use more cpu.
@@ -41,7 +41,6 @@ GUB.DefaultUB.Version = 123
 --                           2 -- show
 -- HideTargetFrame        - Same as above.
 --
--- HideTooltips           - Boolean. If true tooltips are not shown when mousing over unlocked bars.
 -- HideTooltipsDesc       - Boolean. If true the descriptions inside the tooltips will not be shown when mousing over
 -- HideTextHighlight      - Boolean. If true then text frames will not be highlighted when the options are opened.
 -- AlignAndSwapEnabled    - Boolean. If true then align and swap can be accessed, otherwise cant be.
@@ -380,11 +379,16 @@ GUB.DefaultUB.Default = {
     RelativePoint = 'CENTER',
     Px = 0,
     Py = 0,
+    Show = false,
     EnableClass = true,
-    IsGrouped = false,
-    IsLocked = false,
-    IsClamped = true,
+    Grouped = false,
+    Locked = false,
+    Clamped = true,
     Testing = false,
+    HideTooltipsLocked = false,
+    HideTooltipsNotLocked = false,
+    HideTooltipsDesc = false,
+    HideLocationInfo = false,
     BarFillFPS = 60,
     Align = false,
     Swap = false,
@@ -395,11 +399,8 @@ GUB.DefaultUB.Default = {
     AlignSwapOffsetY = 0,
     HidePlayerFrame = 0, -- 0 means do nothing not checked 1 = hide, 2 = show
     HideTargetFrame = 0, -- 0 means do nothing not checked 1 = hide, 2 = show
-    HideTooltips = false,
-    HideTooltipsDesc = false,
     HideTextHighlight = false,
     AlignAndSwapEnabled = true,
-    HideLocationInfo = false,
     ReverseAnimation = true,
     AnimationType = 'alpha',
     AnimationInTime = DefaultAnimationInTime,
@@ -1725,6 +1726,9 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+Version 1.25
+|cff00ff00Bars and Tooltips|r has Changed. You'll need to redo these settings found in General -> Main
+
 Version 1.21
 Code changes applied from retail version 6.49
 
