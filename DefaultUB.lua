@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 125
+GUB.DefaultUB.Version = 130
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -180,8 +180,8 @@ GUB.DefaultUB.Version = 125
 --     FontSize           - Size of the font.
 --     FontStyle          - Contains flags seperated by a comma: MONOCHROME, OUTLINE, THICKOUTLINE
 --     FontHAlign         - Horizontal alignment.  LEFT  CENTER  RIGHT
---     Position           - Position relative to the font's parent.  Can be one of the 9 standard setpoints.
---     FontPosition       - Same as Position except its relative to Position.
+--     FontBarPosition    - Position relative to the font's parent.  Can be one of the 9 standard setpoints.
+--     FontAnchorPosition - Same as Position except its the font's anchor
 --     Width              - Field width for the font.
 --     OffsetX            - Horizontal offset position of the frame.
 --     OffsetY            - Vertical offset position of the frame.
@@ -525,10 +525,8 @@ MergeTable(Profile.PlayerHealth, {
       FontStyle = 'NONE',
       FontHAlign = 'CENTER',
       FontVAlign = 'MIDDLE',
-      Position = 'CENTER',
-      FontPosition = 'CENTER',
-      Width = 200,
-      Height = 18,
+      FontBarPosition = 'CENTER',
+      FontAnchorPosition = 'CENTER',
       OffsetX = 0,
       OffsetY = 0,
       ShadowOffset = 0,
@@ -669,10 +667,8 @@ MergeTable(Profile.PlayerPower, {
       FontStyle = 'NONE',
       FontHAlign = 'CENTER',
       FontVAlign = 'MIDDLE',
-      Position = 'CENTER',
-      FontPosition = 'CENTER',
-      Width = 200,
-      Height = 18,
+      FontBarPosition = 'CENTER',
+      FontAnchorPosition = 'CENTER',
       OffsetX = 0,
       OffsetY = 0,
       ShadowOffset = 0,
@@ -802,10 +798,8 @@ MergeTable(Profile.TargetHealth, {
       FontStyle = 'NONE',
       FontHAlign = 'CENTER',
       FontVAlign = 'MIDDLE',
-      Position = 'CENTER',
-      FontPosition = 'CENTER',
-      Width = 200,
-      Height = 18,
+      FontBarPosition = 'CENTER',
+      FontAnchorPosition = 'CENTER',
       OffsetX = 0,
       OffsetY = 0,
       ShadowOffset = 0,
@@ -931,10 +925,8 @@ MergeTable(Profile.TargetPower, {
       FontStyle = 'NONE',
       FontHAlign = 'CENTER',
       FontVAlign = 'MIDDLE',
-      Position = 'CENTER',
-      FontPosition = 'CENTER',
-      Width = 200,
-      Height = 18,
+      FontBarPosition = 'CENTER',
+      FontAnchorPosition = 'CENTER',
       OffsetX = 0,
       OffsetY = 0,
       ShadowOffset = 0,
@@ -1063,10 +1055,8 @@ MergeTable(Profile.PetHealth, {
       FontStyle = 'NONE',
       FontHAlign = 'CENTER',
       FontVAlign = 'MIDDLE',
-      Position = 'CENTER',
-      FontPosition = 'CENTER',
-      Width = 200,
-      Height = 18,
+      FontBarPosition = 'CENTER',
+      FontAnchorPosition = 'CENTER',
       OffsetX = 0,
       OffsetY = 0,
       ShadowOffset = 0,
@@ -1193,10 +1183,8 @@ MergeTable(Profile.PetPower, {
       FontStyle = 'NONE',
       FontHAlign = 'CENTER',
       FontVAlign = 'MIDDLE',
-      Position = 'CENTER',
-      FontPosition = 'CENTER',
-      Width = 200,
-      Height = 18,
+      FontBarPosition = 'CENTER',
+      FontAnchorPosition = 'CENTER',
       OffsetX = 0,
       OffsetY = 0,
       ShadowOffset = 0,
@@ -1339,10 +1327,8 @@ MergeTable(Profile.ManaPower, {
       FontStyle = 'NONE',
       FontHAlign = 'CENTER',
       FontVAlign = 'MIDDLE',
-      Position = 'CENTER',
-      FontPosition = 'CENTER',
-      Width = 200,
-      Height = 18,
+      FontBarPosition = 'CENTER',
+      FontAnchorPosition = 'CENTER',
       OffsetX = 0,
       OffsetY = 0,
       ShadowOffset = 0,
@@ -1598,6 +1584,12 @@ value1(%d%%) max2( : %d) -> (20%) : (999)
 value1(Health %.f /) value2(Percentage %d%%) -> Health 999 / Percentage 20%
 value1(%.2fk) -> 999.99k
 
+You can also add \n for multiline
+
+value1(%d%%\n) max2(%d) ->
+(20%)
+(999)
+
 For more information you can check out the following links:
 
 For text:]]
@@ -1726,6 +1718,9 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+Version 1.30
+|cff00ff00Text|r font options has Changed.  Field width and field height has been removed. \n can be added in custom layout inside the () to do multiline text.  You may have to redo text options if you find something not where it was
+
 Version 1.25
 |cff00ff00Bars and Tooltips|r has Changed. You'll need to redo these settings found in General -> Main
 

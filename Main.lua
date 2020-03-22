@@ -1154,6 +1154,19 @@ end
 local function ConvertCustom(Ver, BarType, SourceUB, DestUB, SourceKey, DestKey, KeyFound)
   if Ver == 1 then
     SourceUB[KeyFound].AnchorPoint = 'TOPLEFT'
+  elseif Ver == 2 then
+    -- Convert FontAnchorPosition Position
+    local Text = SourceUB[KeyFound]
+
+    for Index = 1, #Text do
+      local TS = Text[Index]
+
+      TS.FontAnchorPosition = TS.FontPosition
+      TS.FontBarPosition = TS.Position
+
+      TS.FontPosition = nil
+      TS.Position = nil
+    end
   end
 end
 
@@ -1165,9 +1178,14 @@ local function ConvertUnitBarData(Ver)
   local ConvertUBData1 = {
     {Action = 'custom',    Source = '',                                 '=Attributes'},
   }
+  local ConvertUBData2 = {
+    {Action = 'custom',    Source = '',                                 '=Text', '=Text2'},
+  }
 
   if Ver == 1 then -- First time conversion
     ConvertUBData = ConvertUBData1
+  elseif Ver == 2 then
+    ConvertUBData = ConvertUBData2
   end
 
   for BarType, UBF in pairs(UnitBarsF) do
@@ -1978,7 +1996,7 @@ end
 -- Shows all escapes codes in a string.
 -------------------------------------------------------------------------------
 function GUB.Main:PrintRaw(Text)
-  print(gsub(Text, '|', '||'))
+  print(format('%q', Text))
 end
 
 -------------------------------------------------------------------------------
@@ -3110,12 +3128,6 @@ end
 --
 -- Calls Fn when ever the ticker restarts
 -------------------------------------------------------------------------------
-local function CLEU(...)
-  if select(8, ...) == PlayerGUID and select(17, ...) == 0 then
-    print('>>', ...)
-  end
-end
-
 local function OnUpdateTickerFrame(self)
   TickerFrame:SetScript('OnUpdate', nil)
 
@@ -3187,7 +3199,7 @@ local function CLEU(...)
   local TimeStamp, Event, HideCaster, SourceGUID, SourceName, SourceFlags, SourceRaidFlags, DestGUID, DestName, DestFlags, DestRaidFlags = ...
 
   if PlayerGUID == DestGUID and select(17, ...) == 0 then
-    print('CLEU:', GetTime(), Event)
+  --  print('CLEU:', GetTime(), Event)
   end
 end
 
@@ -4075,13 +4087,18 @@ function GUB:ApplyProfile()
   -- Share the values with other parts of the addon.
   ShareData()
 
+  -- Check for invalid version number
+  if Ver > 500 then
+    Ver = nil
+    Version = 130
+  end
+
   if Ver == nil or Ver < 121 then -- 1.21
     ConvertUnitBarData(1)
   end
-  --[[ if Ver == nil or Ver < 300 then
-    -- Convert profile from a version before 3.00
+  if Ver == nil or Ver < 130 then -- 1.30
     ConvertUnitBarData(2)
-  end ]]
+  end
 
   -- Make sure profile is accurate.
   FixUnitBars()
@@ -4174,8 +4191,8 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if Gdata.ShowMessage ~= 10 then
-    Gdata.ShowMessage = 10
+  if Gdata.ShowMessage ~= 12 then
+    Gdata.ShowMessage = 12
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end
