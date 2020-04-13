@@ -15,11 +15,7 @@ local DUB = GUB.DefaultUB.Default.profile
 
 local UnitBarsF = Main.UnitBarsF
 local LSM = Main.LSM
-local RMH = Main.RMH
 local ConvertPowerType = Main.ConvertPowerType
-
--- Real Mob Health
-local RMHGetUnitHealth = RMH and RMH.GetUnitHealth
 
 -- localize some globals.
 local _, _G =
@@ -397,15 +393,9 @@ local function UpdateHealthBar(self, Event, Unit)
   local CurrValue = nil
   local MaxValue = nil
 
-  -- Check for real mob health
-  if Layout.UseRealMobHealth and RMH and Unit == 'target' then
-    CurrValue, MaxValue = RMHGetUnitHealth('target')
-    CurrValue = CurrValue or 0
-    MaxValue = MaxValue or 0
-  else
-    CurrValue = UnitHealth(Unit)
-    MaxValue = UnitHealthMax(Unit)
-  end
+  CurrValue = UnitHealth(Unit)
+  MaxValue = UnitHealthMax(Unit)
+
   self.IsActive = CurrValue < MaxValue
 
   --------

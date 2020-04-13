@@ -2,8 +2,8 @@
 ## Title: Galvin's UnitBars Classic
 ## Notes: Displays resource bars that can be moved around
 ## Author: Galvin
-## Version: 1.31
-## OptionalDeps: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets, RealMobHealth
+## Version: 1.32
+## OptionalDeps: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets
 ## SavedVariables: GalvinUnitBarsClassicDB
 #@no-lib-strip@
 # Ace Libraries

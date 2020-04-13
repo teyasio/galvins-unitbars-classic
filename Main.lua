@@ -30,7 +30,6 @@ GUB.Options = Options
 LibStub('AceAddon-3.0'):NewAddon(GUB, MyAddon, 'AceConsole-3.0', 'AceEvent-3.0')
 
 local LSM = LibStub('LibSharedMedia-3.0')
-local RMH = RealMobHealth
 
 -- localize some globals.
 local _, _G =
@@ -146,7 +145,6 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 -- Main.UnitBarsF         - Reference to UnitBarsF
 -- Main.UnitBarsFE        - Reference to UnitBarsFE
 -- Main.LSM               - Reference to Lib Shared Media.
--- Main.RMH               - Reference to Real Mob Health.
 -- Main.ProfileChanged    - If true then profile is currently being changed. This is set by SetUnitBars()
 -- Main.CopyPasted        - If true then a copy and paste happened.  This is set by CreateCopyPasteOptions() in Options.lua.
 -- Main.Reset             - If true then a reset happened.  This is set by CreateResetOptions() in options.lua.
@@ -477,7 +475,6 @@ DUB.PetPower.BarVisible     = function() return HasPet end
 
 -- Share with the whole addon.
 Main.LSM = LSM
-Main.RMH = RMH
 Main.PowerColorType = PowerColorType
 Main.ConvertPowerType = ConvertPowerType
 Main.ConvertPowerTypeHAP = ConvertPowerTypeHAP

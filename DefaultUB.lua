@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 131
+GUB.DefaultUB.Version = 132
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -744,7 +744,6 @@ MergeTable(Profile.TargetHealth, {
 
     _More = 1,
 
-    UseRealMobHealth = true,
     ClassColor = false,
     CombatColor = false,
     TaggedColor = false,
