@@ -480,7 +480,7 @@ Main.LSM = LSM
 Main.RMH = RMH
 Main.PowerColorType = PowerColorType
 Main.ConvertPowerType = ConvertPowerType
-Main.ConvertPowerTypeHAP = ConvertPowerType
+Main.ConvertPowerTypeHAP = ConvertPowerTypeHAP
 Main.ConvertCombatColor = ConvertCombatColor
 Main.Talents = Talents
 Main.UnitBarsF = UnitBarsF
@@ -616,6 +616,7 @@ local function InitializeColors()
     ConvertPowerTypeL[PowerType] = Value
   end
   ConvertPowerType = ConvertPowerTypeL
+  Main:ListTable(ConvertPowerType)
 end
 
 --*****************************************************************************
