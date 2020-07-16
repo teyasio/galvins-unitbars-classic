@@ -2,7 +2,7 @@
 ## Title: Galvin's UnitBars Classic
 ## Notes: Displays resource bars that can be moved around
 ## Author: Galvin
-## Version: 1.32
+## Version: 1.40
 ## OptionalDeps: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets
 ## SavedVariables: GalvinUnitBarsClassicDB
 #@no-lib-strip@
@@ -26,6 +26,7 @@ Libs\AceGUI-3.0-SharedMediaWidgets\widget.xml
 
 # Load Addon files
 DefaultUB.lua
+Talents.lua
 Main.lua
 Controls.lua
 Bar.lua

@@ -10,23 +10,17 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
-local TT = GUB.DefaultUB.TriggerTypes
+local OT = Bar.TriggerObjectTypes
 local DUB = GUB.DefaultUB.Default.profile
 
 local UnitBarsF = Main.UnitBarsF
-local LSM = Main.LSM
 local ConvertPowerType = Main.ConvertPowerType
 
 -- localize some globals.
 local _, _G =
       _, _G
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
-local strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch =
-      strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch
-local GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort =
-      GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort
-
+local floor, strfind, pairs, print =
+      floor, strfind, pairs, print
 local GetSpellPowerCost, UnitHealth, UnitHealthMax, UnitLevel =
       GetSpellPowerCost, UnitHealth, UnitHealthMax, UnitLevel
 local UnitExists, UnitName, UnitPowerType, UnitPower, UnitPowerMax =
@@ -57,87 +51,73 @@ local PowerMana = ConvertPowerType['MANA']
 local PowerEnergy = ConvertPowerType['ENERGY']
 local PowerFocus = ConvertPowerType['FOCUS']
 
-local GF = { -- Get function data
-  TT.TypeID_ClassColor,  TT.Type_ClassColor,
-  TT.TypeID_PowerColor,  TT.Type_PowerColor,
-  TT.TypeID_CombatColor, TT.Type_CombatColor,
-  TT.TypeID_TaggedColor, TT.Type_TaggedColor,
+local ObjectsInfo = { -- type, id, additional menu text, textures
+  { OT.BackgroundBorder,      1,  '',        HapTFrame        },
+  { OT.BackgroundBorderColor, 2,  '',        HapTFrame        },
+  { OT.BackgroundBackground,  3,  '',        HapTFrame        },
+  { OT.BackgroundColor,       4,  '',        HapTFrame        },
+  { OT.BarTexture,            5,  '',        StatusBar        },
+  { OT.BarColor,              6,  '',        StatusBar        },
+  { OT.BarTexture,            7,  ' (cost)', PredictedCostBar },
+  { OT.BarColor,              8,  ' (cost)', PredictedCostBar },
+  { OT.BarOffset,             9,  '',        HapTFrame        },
+  { OT.TextFontColor,         10, '',                         },
+  { OT.TextFontOffset,        11, '',                         },
+  { OT.TextFontSize,          12, '',                         },
+  { OT.TextFontType,          13, '',                         },
+  { OT.TextFontStyle,         14, '',                         },
+  { OT.Sound,                 15, ''                          }
 }
 
-local TD = { -- Trigger data
-  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,             HapTFrame },
-  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,        HapTFrame,
-    GF = GF },
-  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,         HapTFrame },
-  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,              HapTFrame,
-    GF = GF },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture,                   StatusBar },
-  { TT.TypeID_BarColor,              TT.Type_BarColor,                     StatusBar,
-    GF = GF },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (cost)', PredictedCostBar },
-  { TT.TypeID_BarColor,              TT.Type_BarColor .. ' (cost)',   PredictedCostBar,
-    GF = GF },
-  { TT.TypeID_BarOffset,             TT.Type_BarOffset,                    HapTFrame },
-  { TT.TypeID_TextFontColor,         TT.Type_TextFontColor,
-    GF = GF },
-  { TT.TypeID_TextFontOffset,        TT.Type_TextFontOffset },
-  { TT.TypeID_TextFontSize,          TT.Type_TextFontSize },
-  { TT.TypeID_TextFontType,          TT.Type_TextFontType },
-  { TT.TypeID_TextFontStyle,         TT.Type_TextFontStyle },
-  { TT.TypeID_Sound,                 TT.Type_Sound }
+local ObjectInfoTicker = { -- type, id, additional menu text, textures
+  {OT.BackgroundBorder,      1,  '',        HapTFrame        },
+  {OT.BackgroundBorderColor, 2,  '',        HapTFrame        },
+  {OT.BackgroundBackground,  3,  '',        HapTFrame        },
+  {OT.BackgroundColor,       4,  '',        HapTFrame        },
+  {OT.BarTexture,            5,  '',        StatusBar        },
+  {OT.BarColor,              6,  '',        StatusBar        },
+  {OT.BarTexture,            7,  ' (cost)', PredictedCostBar },
+  {OT.BarColor,              8,  ' (cost)', PredictedCostBar },
+  {OT.BarOffset,             9,  '',        HapTFrame        },
+  {OT.BarTexture,            10, '',        TickerBar        },
+  {OT.BarColor,              11, '',        TickerBar        },
+  {OT.TextFontColor,         12, '',                         },
+  {OT.TextFontOffset,        13, '',                         },
+  {OT.TextFontSize,          14, '',                         },
+  {OT.TextFontType,          15, '',                         },
+  {OT.TextFontStyle,         16, '',                         },
+  {OT.Sound,                 17, ''                          },
 }
 
-local TDticker = { -- Trigger data that includes the ticker
-  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,             HapTFrame },
-  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor,        HapTFrame,
-    GF = GF },
-  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,         HapTFrame },
-  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,              HapTFrame,
-    GF = GF },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture,                   StatusBar },
-  { TT.TypeID_BarColor,              TT.Type_BarColor,                     StatusBar,
-    GF = GF },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture .. ' (cost)', PredictedCostBar },
-  { TT.TypeID_BarColor,              TT.Type_BarColor .. ' (cost)',   PredictedCostBar,
-    GF = GF },
-  { TT.TypeID_BarOffset,             TT.Type_BarOffset,                    HapTFrame },
-  { TT.TypeID_BarTextureTicker,      TT.Type_BarTextureTicker,             TickerBar },
-  { TT.TypeID_BarColorTicker,        TT.Type_BarColorTicker,               TickerBar,
-    GF = GF },
-  { TT.TypeID_TextFontColor,         TT.Type_TextFontColor,
-    GF = GF },
-  { TT.TypeID_TextFontOffset,        TT.Type_TextFontOffset },
-  { TT.TypeID_TextFontSize,          TT.Type_TextFontSize },
-  { TT.TypeID_TextFontType,          TT.Type_TextFontType },
-  { TT.TypeID_TextFontStyle,         TT.Type_TextFontStyle },
-  { TT.TypeID_Sound,                 TT.Type_Sound }
+local GroupsInfoHealth = { -- BoxNumber, Name, ValueTypes
+  ValueNames = {
+    'whole',   'Health',
+    'percent', 'Health (percent)',
+    'whole',   'Unit Level',
+  },
+  {1, 'Health', ObjectsInfo}, -- 1
 }
 
-local HealthVTs = {'whole',   'Health',
-                   'percent', 'Health (percent)',
-                   'whole',   'Unit Level',
-                   'auras',   'Auras'            }
-local PowerVTs = {'whole',   'Power',
-                  'percent', 'Power (percent)',
-                  'whole',   'Predicted Cost',
-                  'whole',   'Unit Level',
-                  'auras',   'Auras'           }
-local PowerTickerVTs = {'whole',   'Power',
-                        'percent', 'Power (percent)',
-                        'whole',   'Predicted Cost',
-                        'whole',   'Unit Level',
-                        'float',   'Ticker (time)',
-                        'state',   'Ticker (FSR)',
-                        'auras',   'Auras'           }
+local GroupsInfoPower = { -- BoxNumber, Name, ValueTypes
+  ValueNames = {
+    'whole',   'Power',
+    'percent', 'Power (percent)',
+    'whole',   'Predicted Cost',
+    'whole',   'Unit Level',
+  },
+  {1, 'Power', ObjectsInfo}, -- 1
+}
 
-local HealthGroups = { -- BoxNumber, Name, ValueTypes,
-  {1, '', HealthVTs, TD}, -- 1
-}
-local PowerGroups = { -- BoxNumber, Name, ValueTypes,
-  {1, '', PowerVTs, TD}, -- 1
-}
-local PowerTickerGroups = { -- BoxNumber, Name, ValueTypes,
-  {1, '', PowerTickerVTs, TDticker}, --1
+local GroupsInfoPowerTicker = { -- BoxNumber, Name, ValueTypes
+  ValueNames = {
+    'whole',   'Power',
+    'percent', 'Power (percent)',
+    'whole',   'Predicted Cost',
+    'whole',   'Unit Level',
+    'decimal', 'Ticker (time)',
+    'state',   'Ticker (FSR)',
+  },
+  {1, 'Power', ObjectInfoTicker}, -- 1
 }
 
 -------------------------------------------------------------------------------
@@ -197,7 +177,7 @@ end
 -------------------------------------------------------------------------------
 local function SetTickerColor(UnitBarF, PowerType)
   local Bar = UnitBarF.UnitBar.Bar
-  local Color = nil
+  local Color
 
   if PowerType == PowerMana then
     Color = Bar.TickerColorMana
@@ -222,8 +202,8 @@ local function DoTickerTime(UnitBarF, BBar, BoxNumber, Time, Done)
     local Layout = UnitBarF.UnitBar.Layout
 
     if Layout.EnableTriggers then
-      BBar:SetTriggers(BoxNumber, 'ticker (time)', Time)
-      BBar:SetTriggers(HapBox, 'ticker (fsr)', UnitBarF.BarData.Message == 'fsr')
+      BBar:SetTriggers('Ticker (time)', Time)
+      BBar:SetTriggers('Ticker (FSR)', UnitBarF.BarData.Message == 'fsr')
       BBar:DoTriggers()
     end
     UnitBarF.BarData.Time = Time
@@ -242,7 +222,6 @@ end
 local function Ticker(UnitBarF, Message, PowerType, Duration)
   local BarType = UnitBarF.BarType
   local BBar = UnitBarF.BBar
-  local TickTimer = UnitBarF.TickTimer
   local UB = UnitBarF.UnitBar
   local Layout = UB.Layout
 
@@ -290,7 +269,7 @@ end
 -------------------------------------------------------------------------------
 local function SetTicker(UnitBarF, Action)
   local BarType = UnitBarF.BarType
-  local Command = nil
+  local Command
 
   if Action then
     Main:SetTickerTracker(UnitBarF, 'fn', Ticker)
@@ -320,7 +299,7 @@ local function Casting(UnitBarF, SpellID, Message)
   UnitBarF.PredictedCost = 0
 
   if Message == 'start' then
-    local BarPowerType = nil
+    local BarPowerType
 
     if UnitBarF.BarType == 'ManaPower' then
       BarPowerType = PowerMana
@@ -388,10 +367,9 @@ local function UpdateHealthBar(self, Event, Unit)
   ---------------
   local UB = self.UnitBar
   Unit = UB.UnitType
-  local Layout = UB.Layout
 
-  local CurrValue = nil
-  local MaxValue = nil
+  local CurrValue
+  local MaxValue
 
   CurrValue = UnitHealth(Unit)
   MaxValue = UnitHealthMax(Unit)
@@ -477,9 +455,9 @@ local function UpdateHealthBar(self, Event, Unit)
 
   -- Check triggers
   if UB.Layout.EnableTriggers then
-    BBar:SetTriggers(1, 'health', CurrValue)
-    BBar:SetTriggers(1, 'health (percent)', CurrValue, MaxValue)
-    BBar:SetTriggers(1, 'unit level', Level)
+    BBar:SetTriggers('Health', CurrValue)
+    BBar:SetTriggers('Health (percent)', CurrValue, MaxValue)
+    BBar:SetTriggers('Unit Level', Level)
     BBar:DoTriggers()
   end
 end
@@ -508,7 +486,7 @@ local function UpdatePowerBar(self, Event, Unit, PowerToken)
   local BarType = self.BarType
   Unit = UB.UnitType
 
-  local PowerType = nil
+  local PowerType
   Unit = UB.UnitType
   PowerToken = ConvertPowerType[PowerToken]
 
@@ -564,7 +542,6 @@ local function UpdatePowerBar(self, Event, Unit, PowerToken)
   ------------
   local BBar = self.BBar
   local Layout = UB.Layout
-  local DLayout = DUB[BarType].Layout
   local BD = self.BarData
 
   if Main.UnitBars.Testing then
@@ -665,10 +642,10 @@ local function UpdatePowerBar(self, Event, Unit, PowerToken)
 
   -- Check triggers
   if UB.Layout.EnableTriggers then
-    BBar:SetTriggers(1, 'power', CurrValue)
-    BBar:SetTriggers(1, 'power (percent)', CurrValue, MaxValue)
-    BBar:SetTriggers(1, 'predicted cost', PredictedCost)
-    BBar:SetTriggers(1, 'unit level', Level)
+    BBar:SetTriggers('Power', CurrValue)
+    BBar:SetTriggers('Power (percent)', CurrValue, MaxValue)
+    BBar:SetTriggers('Predicted Cost', PredictedCost)
+    BBar:SetTriggers('Unit Level', Level)
     BBar:DoTriggers()
   end
 end
@@ -692,9 +669,7 @@ Main.UnitBarsF.ManaPower.Update   = UpdatePowerBar
 HapFunction('SetAttr', function(self, TableName, KeyName)
   local BBar = self.BBar
   local BarType = self.BarType
-  local UB = self.UnitBar
   local UBD = DUB[BarType]
-  local Layout = UB.Layout
   local DLayout = UBD.Layout
   local DBar = UBD.Bar
 
@@ -706,12 +681,12 @@ HapFunction('SetAttr', function(self, TableName, KeyName)
     BBar:SO('Layout', 'EnableTriggers', function(v)
       if strfind(BarType, 'Power') then
         if BarType == 'PlayerPower' or BarType == 'ManaPower' then
-          BBar:EnableTriggers(v, PowerTickerGroups)
+          BBar:EnableTriggers(v, GroupsInfoPowerTicker)
         else
-          BBar:EnableTriggers(v, PowerGroups)
+          BBar:EnableTriggers(v, GroupsInfoPower)
         end
       else
-        BBar:EnableTriggers(v, HealthGroups)
+        BBar:EnableTriggers(v, GroupsInfoHealth)
       end
       Update = true
     end)

@@ -20,14 +20,16 @@ local LSM = Main.LSM
 local AceGUI = LibStub('AceGUI-3.0')
 
 -- localize some globals.
-local GetSpellInfo, SPELL_PASSIVE, ipairs, pairs, type, tonumber, CreateFrame, select, floor, strlower, strfind, strsplit, format, tinsert, print, sort =
-      GetSpellInfo, SPELL_PASSIVE, ipairs, pairs, type, tonumber, CreateFrame, select, floor, strlower, strfind, strsplit, format, tinsert, print, sort
-local table, GameTooltip, ClearOverrideBindings, SetOverrideBindingClick, GetCursorInfo, GetSpellBookItemName, PlaySound, CreateFont =
-      table, GameTooltip, ClearOverrideBindings, SetOverrideBindingClick, GetCursorInfo, GetSpellBookItemName, PlaySound, CreateFont
-local ClearCursor, GameTooltip, UIParent, GameFontHighlight, GameFontNormal, GameFontDisable, GameFontHighlight, ChatFontNormal, OKAY =
-      ClearCursor, GameTooltip, UIParent, GameFontHighlight, GameFontNormal, GameFontDisable, GameFontHighlight, ChatFontNormal, OKAY
-local GetTime, SoundKit, unpack =
-      GetTime, SOUNDKIT, unpack
+local _, _G =
+      _, _G
+local GetSpellInfo, ipairs, pairs, tonumber, CreateFrame, strlower, strfind, strsplit, format, print, sort =
+      GetSpellInfo, ipairs, pairs, tonumber, CreateFrame, strlower, strfind, strsplit, format, print, sort
+local GameTooltip, ClearOverrideBindings, PlaySound, CreateFont =
+      GameTooltip, ClearOverrideBindings, PlaySound, CreateFont
+local GameTooltip, UIParent, GameFontNormal, GameFontDisable, GameFontHighlight, ChatFontNormal, OKAY =
+      GameTooltip, UIParent, GameFontNormal, GameFontDisable, GameFontHighlight, ChatFontNormal, OKAY
+local SoundKit, unpack =
+      SOUNDKIT, unpack
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -44,7 +46,6 @@ local GetTime, SoundKit, unpack =
 --                        The keyname is the Frame and the value is true or nil
 -------------------------------------------------------------------------------
 local SpellsLoaded = false
-local Tooltip = nil
 local HyperLinkSt = 'spell:%s'
 
 local AuraMenuLines = 100
@@ -84,10 +85,8 @@ local MenuOpenedIcon        = [[Interface\Addons\GalvinUnitBarsClassic\Textures\
 local MenuClosedIcon        = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_MenuClosed]]
 local MenuBulletIcon        = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_MenuBullet]]
 
-local SpellsTimer = {}
 local SpellList = {}
 local WidgetUserData = {}
-local AuraMenuFrame = nil
 
 local AuraMenuBackdrop = {
   bgFile   = [[Interface\ChatFrame\ChatFrameBackground]],
@@ -233,7 +232,6 @@ local function OnAcquire(self)
   self:SetLabel()
   self.showButton = true
 
-  AuraMenuFrame = self.AuraMenuFrame
   LoadSpells()
 end
 
@@ -249,8 +247,6 @@ local function OnRelease(self)
   Frame:Hide()
   self.AuraMenuFrame.MenuFrame:Hide()
   self.SpellFilter = nil
-
-  AuraMenuFrame = nil
 
   self:SetDisabled(false)
 end
@@ -314,7 +310,7 @@ end
 local function PopulateAuraMenu(self)
   local Widget = self.Widget
   local SearchSt = strlower(Widget.EditBox:GetText())
-  local TrackedAurasList = Main.TrackedAurasList
+  local AuraTrackersData = Main.AuraTrackersData
   local Matches = {}
   local ActiveButtons = 0
 
@@ -323,11 +319,13 @@ local function PopulateAuraMenu(self)
   end
 
   -- Do auras
-  if TrackedAurasList then
-    for SpellID, Aura in pairs(TrackedAurasList.All) do
+  local All = AuraTrackersData.All
+
+  if All then
+    for SpellID, Aura in pairs(All) do
       local Name = strlower(GetSpellInfo(SpellID))
 
-      if strfind(Name, SearchSt, 1) == 1 then
+      if strfind(Name, SearchSt, 1, true) == 1 then
         if ActiveButtons < AuraMenuLines then
           ActiveButtons = ActiveButtons + 1
           AddAuraMenuButton(self, ActiveButtons, '|T%s:15:15:2:11|t |cFFFFFFFF%s|r', SpellID)
@@ -340,9 +338,7 @@ local function PopulateAuraMenu(self)
 
   -- Do SpellList
   for SpellID, Name in pairs(SpellList) do
-    if strfind(strlower(Name), SearchSt, 1) == 1 then
-      local Found = TrackedAurasList and TrackedAurasList[SpellID] or nil
-
+    if strfind(strlower(Name), SearchSt, 1, true) == 1 then
       Matches[#Matches + 1] = SpellID
     end
   end
@@ -478,6 +474,7 @@ end
 -- Gets called when esckey is pressed which clears the focus
 -------------------------------------------------------------------------------
 local function EditBoxOnEscapePressed(self)
+  self.Widget:Fire('OnEnterPressed', -1)
   self:ClearFocus()
 end
 
@@ -562,8 +559,8 @@ end
 local function EditBoxSetText(self, Text, Cursor)
   local EditBox = self.EditBox
 
-  self.LastText = Text or ''
-  EditBox:SetText(self.LastText)
+  self.LastText = ''
+  EditBox:SetText(Text)
   EditBox:SetCursorPosition(Cursor or 0)
 
   AuraMenuHideButton(self)
@@ -622,7 +619,7 @@ local function AuraMenuButtonOnEnter(self)
   GameTooltip:AddLine(format('|cFFFFFF00SpellID:|r|cFF00FF00%s|r', SpellID))
 
   -- Need to add a blank so that spellID shows for first time on mouse over
-  GameTooltip:AddLine('')
+  GameTooltip:AddLine(' ')
 
   -- Need to show to make sure the tooltip surrounds the AddLine text
   -- after SetHyperlink
@@ -709,6 +706,9 @@ end
 -- AuraMenuConstructor
 --
 -- Creates the widget for the edit box and aura menu
+--
+-- Notes: If escape is pressed. Then a -1 is returned instead of what was entered
+--        into the edit box
 -------------------------------------------------------------------------------
 local function AuraMenuConstructor()
   local Frame = CreateFrame('Frame', nil, UIParent)
@@ -866,8 +866,8 @@ AceGUI:RegisterWidgetType(AuraEditBoxWidgetType, AuraEditBoxConstructor, AuraEdi
 -- State          '0', '1', '2'
 -------------------------------------------------------------------------------
 local function SetMenuIcon(ButtonFrame, State)
-  local MenuIcon = nil
-  local MenuIconSize = nil
+  local MenuIcon
+  local MenuIconSize
   local MenuArrowClosed = ButtonFrame.MenuArrowClosed
   local MenuArrowOpened = ButtonFrame.MenuArrowOpened
   local MenuBullet = ButtonFrame.MenuBullet
@@ -987,7 +987,7 @@ end
 --
 -- Creates the button for the ace options to use.
 --
--- To use this in ace-config.  Use type = 'input', and then use set to respond
+-- To use this in ace-config.  Use type = 'input', and then use "set" to respond
 -- To mouse clicks on the button.
 --
 -- To set the state use: 'Menu:#' # = 0 closed, # = 1 opened, # = 2 bullet
@@ -1487,23 +1487,44 @@ end
 -- Text       SpellID, size, and text
 -------------------------------------------------------------------------------
 local function SpellInfoSetLabel(self, Text)
-  local SpellID, IconSize, FontSize, Text = strsplit(':', Text, 4)
+  local Name
+  local Icon
+  local SpellID
+  local IconSize
+  local FontSize
 
-  SpellID = tonumber(SpellID)
-  IconSize = tonumber(IconSize)
-  FontSize = tonumber(FontSize)
-
-  -- Set up the icon and position
-  local Name, _, Icon = GetSpellInfo(SpellID)
   local IconFrame = self.IconFrame
-  local IconTexture = self.IconTexture
   local IconLabel = self.IconLabel
+  local IconTexture = self.IconTexture
 
-  IconTexture:SetTexture(Icon)
-  IconFrame:SetSize(IconSize, IconSize)
+  if strfind(Text, '::', 1, true) == nil then
+    SpellID, IconSize, FontSize, Text = strsplit(':', Text, 4)
 
-  -- This sets the height of Widget.frame
-  self:SetHeight(IconSize)
+    SpellID = tonumber(SpellID)
+    IconSize = tonumber(IconSize)
+
+    -- Set up the icon and position
+    if SpellID == 0 then
+      Icon = [[INTERFACE\ICONS\INV_MISC_QUESTIONMARK]]
+      Name = nil
+    else
+      Name, _, Icon = GetSpellInfo(SpellID)
+    end
+
+    IconTexture:SetTexture(Icon)
+    IconFrame:Show()
+    IconFrame:SetSize(IconSize, IconSize)
+
+    -- This sets the height of Widget.frame
+    self:SetHeight(IconSize)
+  else
+    FontSize, _, Text = strsplit(':', Text, 3)
+    IconFrame:Hide()
+    IconFrame:SetSize(0, 0)
+    IconSize = -5
+  end
+
+  FontSize = tonumber(FontSize)
 
   -- Set the icon label
   IconLabel:SetFont(LSM:Fetch('font', 'Arial Narrow'), FontSize, 'NONE')
@@ -1555,6 +1576,10 @@ end
 -- In the 'name' field you specify the spell ID, iconsize, and fontsize, followed by text
 -- Example:  10750:32:14:This is some text
 --
+-- OR
+--
+-- fontsize::text
+--
 -- Will show an icon of of storm bolt with a with and hight of 32. Fontsize will be 14.
 -- And display 'This is some text' to the right of it.
 -------------------------------------------------------------------------------
@@ -1597,9 +1622,14 @@ AceGUI:RegisterWidgetType(SpellInfoWidgetType, SpellInfoConstructor, SpellInfoWi
 --
 --*****************************************************************************
 
+local function SetPointItemFrame(ItemFrame, ScrollFrame, Offset)
+  ItemFrame:ClearAllPoints()
+  ItemFrame:SetPoint('TOPLEFT', ScrollFrame, 'TOPLEFT', 0, Offset or 0)
+  ItemFrame:SetPoint('TOPRIGHT', ScrollFrame, 'TOPRIGHT', -24, Offset or 0)
+end
+
 -- Setup pullout
 local function SetupPullout(Widget)
-  local Dropdown = Widget.dropdown
   local Pullout = Widget.pullout
   local Slider = Pullout.slider
   local ScrollFrame = Pullout.scrollFrame
@@ -1611,12 +1641,38 @@ local function SetupPullout(Widget)
     UserData = {}
     WidgetUserData[Widget] = UserData
   end
-  local SliderPoints = {}
+
+  -- Reset slider was causing a bug when one menu was clicked outside.
+  -- then another menu was clicked inside
+  UserData.SliderValue = Slider:GetValue()
+  Slider:SetValue(0)
+
+  -- OnScrollValueChanged
+  -- The ItemFrame needs to be set again since SetScroll changes it
+  local OldSetScroll = Pullout.SetScroll
+  UserData.SetScroll = OldSetScroll
+  Pullout.SetScroll = function(self, Value)
+    OldSetScroll(self, Value)
+    SetPointItemFrame(ItemFrame, ScrollFrame, Pullout.scrollStatus.offset)
+  end
+
+  local SliderPoints = UserData.SliderPoints
+  if SliderPoints == nil then
+    SliderPoints = {}
+    UserData.SliderPoints = SliderPoints
+  end
+  local ItemFramePoints = UserData.ItemFramePoints
+  if ItemFramePoints == nil then
+    ItemFramePoints = {}
+    UserData.ItemFramePoints = ItemFramePoints
+  end
 
   -- Save all points
-  UserData.SliderPoints = SliderPoints
   for PointIndex = 1, Slider:GetNumPoints() do
     SliderPoints[PointIndex] = { Slider:GetPoint(PointIndex) }
+  end
+  for PointIndex = 1, ItemFrame:GetNumPoints() do
+    ItemFramePoints[PointIndex] = { ItemFrame:GetPoint(PointIndex) }
   end
 
   -- Setup the pullout width and height
@@ -1634,6 +1690,8 @@ local function SetupPullout(Widget)
   Slider:SetPoint('TOPLEFT', ScrollFrame, 'TOPRIGHT', -20, 0)
   Slider:SetPoint('BOTTOMLEFT', ScrollFrame, 'BOTTOMRIGHT', -20, 0)
 
+  SetPointItemFrame(ItemFrame, ScrollFrame)
+
   -- Lower the strata of the itemframe so the slider is easier to click
   -- Slider frame strata was set to 'TOOLTIP'
   UserData.ItemFrameStrata = ItemFrame:GetFrameStrata()
@@ -1644,19 +1702,31 @@ end
 local function RestorePullout(Widget)
   local UserData = WidgetUserData[Widget]
   local SliderPoints = UserData.SliderPoints
+  local ItemFramePoints = UserData.ItemFramePoints
   local Pullout = Widget.pullout
   local Slider = Pullout.slider
+  local ItemFrame = Pullout.itemFrame
 
+  -- Restore Slider
   Slider:SetWidth(UserData.SliderWidth)
   Slider:SetHitRectInsets(0, 0, -10, 0)
   Slider:ClearAllPoints()
   for PointIndex = 1, #SliderPoints do
     Slider:SetPoint(unpack(SliderPoints[PointIndex]))
   end
+
+  Slider:SetValue(UserData.SliderValue)
+
+  -- Restore SetScroll
+  Pullout.SetScroll = UserData.SetScroll
+
+  -- Restore ItemFrame
+  ItemFrame:ClearAllPoints()
+  for PointIndex = 1, #ItemFramePoints do
+    ItemFrame:SetPoint(unpack(ItemFramePoints[PointIndex]))
+  end
   Pullout:SetMaxHeight(UserData.MaxHeight)
   Pullout.itemFrame:SetFrameStrata(UserData.ItemFrameStrata)
-
-  WidgetUserData[Widget] = nil
 end
 
 -------------------------------------------------------------------------------
@@ -1684,7 +1754,6 @@ local function DropdownSelectConstructor()
     if Widget.pullout == nil then
       OldOnAcquire(self, ...)
     end
-
     SetupPullout(self)
   end
 

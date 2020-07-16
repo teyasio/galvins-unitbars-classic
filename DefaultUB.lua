@@ -10,7 +10,7 @@
 local MyAddon, GUB = ...
 
 GUB.DefaultUB = {}
-GUB.DefaultUB.Version = 132
+GUB.DefaultUB.Version = 140
 
 -------------------------------------------------------------------------------
 -- UnitBar table data structure.
@@ -213,35 +213,75 @@ GUB.DefaultUB.DefaultSound = DefaultSound
 GUB.DefaultUB.DefaultSoundChannel = DefaultSoundChannel
 GUB.DefaultUB.DefaultFontType = UBFontType
 
-GUB.DefaultUB.TriggerTypes = {
-  TypeID_BackgroundBorder      = 'border',           Type_BackgroundBorder      = 'BG Border',
-  TypeID_BackgroundBorderColor = 'bordercolor',      Type_BackgroundBorderColor = 'BG Border Color',
-  TypeID_BackgroundBackground  = 'background',       Type_BackgroundBackground  = 'BG Background',
-  TypeID_BackgroundColor       = 'backgroundcolor',  Type_BackgroundColor       = 'BG Background Color',
-  TypeID_BarTexture            = 'bartexture',       Type_BarTexture            = 'Bar Texture',
-  TypeID_BarColor              = 'bartexturecolor',  Type_BarColor              = 'Bar Color',
-  TypeID_BarColorTicker        = 'bartexturecolor',  Type_BarColorTicker        = 'Bar Color (ticker)',
-  TypeID_BarTextureTicker      = 'bartexture',       Type_BarTextureTicker      = 'Bar Texture (ticker)',
-  TypeID_TextureScale          = 'texturescale',     Type_TextureScale          = 'Texture Scale',
-  TypeID_BarOffset             = 'baroffset',        Type_BarOffset             = 'Bar Offset',
-  TypeID_TextFontColor         = 'fontcolor',        Type_TextFontColor         = 'Text Font Color',
-  TypeID_TextFontOffset        = 'fontoffset',       Type_TextFontOffset        = 'Text Font Offset',
-  TypeID_TextFontSize          = 'fontsize',         Type_TextFontSize          = 'Text Font Size',
-  TypeID_TextFontType          = 'fonttype',         Type_TextFontType          = 'Text Font Type',
-  TypeID_TextFontStyle         = 'fontstyle',        Type_TextFontStyle         = 'Text Font Style',
-  TypeID_RegionBorder          = 'border',           Type_RegionBorder          = 'Region Border',
-  TypeID_RegionBorderColor     = 'bordercolor',      Type_RegionBorderColor     = 'Region Border Color',
-  TypeID_RegionBackground      = 'background',       Type_RegionBackground      = 'Region Background',
-  TypeID_RegionBackgroundColor = 'backgroundcolor',  Type_RegionBackgroundColor = 'Region Background Color',
-  TypeID_Sound                 = 'sound',            Type_Sound                 = 'Sound',
-
-  TypeID_ClassColor  = 'classcolor',  Type_ClassColor  = 'Class Color',
-  TypeID_PowerColor  = 'powercolor',  Type_PowerColor  = 'Power Color',
-  TypeID_CombatColor = 'combatcolor', Type_CombatColor = 'Combat Color',
-  TypeID_TaggedColor = 'taggedcolor', Type_TaggedColor = 'Tagged Color',
+-- Default trigger array stuff
+GUB.DefaultUB.TriggerTalentsArray = {
+  SpellID = 0,
+  Match = true,
+  Minimized = false,
 }
-local abs, assert, format, pairs, ipairs, type, next =
-      abs, assert, format, pairs, ipairs, type, next
+GUB.DefaultUB.TriggerConditionsArray = {
+  InputValueName = '', -- check triggers sets default
+  Operator = '>',
+  Value = 0,
+}
+GUB.DefaultUB.TriggerAurasArray = {
+  Minimized = false,
+  Inverse = false,
+  Units = {'player'},
+  SpellID = 0,
+  Own = 0,
+  Type = 0,
+  StackOperator = '>=',
+  Stacks = 0,
+  CheckDebuffTypes = false,
+
+  -- Debuff types
+  Curse = false,
+  Disease = false,
+  Enrage = false,
+  Magic = false,
+  Poison = false,
+}
+
+local DefaultTriggers = {
+  Static = false,
+  Disabled = false,
+  StanceEnabled = false,
+  DisabledByStance = false,
+  OneTime = false,
+  -- ClassStances is deepcopied in down below in each bar
+  -- ClassStances = SetClassStances(ClassStances, false)
+  Talents    = { Disabled = false, All = false },
+  Conditions = { Disabled = false, All = false },
+  Auras      = { Disabled = false, All = false },
+  Name = '',
+  GroupNumber = 1,
+  ObjectType = '',
+  ObjectTypeID = '',
+  ColorUnit = '',
+  ColorFnType = '',
+  CanAnimate = false,
+  Animate = false,
+  AnimateSpeed = 0.01,
+  OffsetAll = true,
+  TextLine = false,
+  AurasOn = false,
+  ActiveAuras = false,
+  ConditionsOn = false,
+
+  -- These are functions.  But functions can't be saved
+  -- So set false as a default
+  ColorFn = false,
+  BarFn = false,
+--Par1
+--Par2
+--Par3
+--Par4   These are not in defaults for nil default checks
+--       These are on the CheckTriggers exclude list
+}
+
+local abs, assert, format, pairs, type, next =
+      abs, assert, format, pairs, type, next
 
 local NoStanceSt = 'No Stance'
 
@@ -288,7 +328,7 @@ local ClassStanceNames = {
 
 -- These are used in GetPlayerStance() only
 -- These convert form to stance
-local FormStance = {
+local FormIDStance = {
   DRUID  = { [5]  = 1,    -- dire bear
              [8]  = 1,    -- bear
              [4]  = 2,    -- Aquatic
@@ -303,7 +343,7 @@ local FormStance = {
 }
 
 GUB.DefaultUB.ClassStanceNames = ClassStanceNames
-GUB.DefaultUB.FormStance = FormStance
+GUB.DefaultUB.FormIDStance = FormIDStance
 
 local function MergeTable(Source, Dest)
   for k, v in pairs(Dest) do
@@ -311,6 +351,30 @@ local function MergeTable(Source, Dest)
   end
 
   return Source
+end
+
+-- Same as deepcopy except it can add a new key and table
+-- SourceKey must be an existing key in the source
+-- AddTableWithKey must contain a key and table
+local function DeepCopy(Source, SourceKey, AddTableWithKey)
+  local Copy = {}
+
+  for k, v in pairs(Source) do
+    if type(v) == 'table' then
+      v = DeepCopy(v)
+    end
+    Copy[k] = v
+  end
+
+  if AddTableWithKey then
+    local AddKey = next(AddTableWithKey)
+    if SourceKey then
+      Copy[SourceKey][AddKey] = DeepCopy(AddTableWithKey[AddKey])
+    end
+    Copy[AddKey] = DeepCopy(AddTableWithKey[AddKey])
+  end
+
+  return Copy
 end
 
 -- Enable = true, then that class is used, otherwise false
@@ -333,6 +397,7 @@ local function SetClassStances(ClassStances, Enabled)
       end
 
       -- Check for enabled
+      -- format example: DRUID = {T}
       if #ClassStance == 1 and type(ClassStance[1]) == 'boolean' then
         t.Enabled = ClassStance[1]
         local StanceNames = ClassStanceNames[ClassName]
@@ -346,8 +411,8 @@ local function SetClassStances(ClassStances, Enabled)
         end
       else
         -- Table size > 1 and not boolean
-        -- -100 = No Stance false
-        --  100 = No Stance true
+        -- -100 = No Stance or formless false
+        --  100 = No Stance or formless true
         t.Enabled = true
         for Index, StanceNumber in pairs(ClassStance) do
           if abs(StanceNumber) == 100 then
@@ -429,7 +494,7 @@ GUB.DefaultUB.Default = {
   },
 }
 local Profile = GUB.DefaultUB.Default.profile
-local ClassStances = nil
+local ClassStances
 
 local T = true  -- Stance used
 local F = false -- Stance not used
@@ -439,8 +504,8 @@ local F = false -- Stance not used
 --=============================================================================
 ClassStances = { -- This is used for all health and power bars
   All = true, Inverse = false, ClassName = '',
-  DRUID  = {T}, HUNTER  = {T}, MAGE    = {T}, PALADIN = {T}, PRIEST = {T},
-  ROGUE  = {T}, SHAMAN  = {T}, WARLOCK = {T}, WARRIOR = {T}
+  DRUID = {T}, HUNTER = {T}, MAGE    = {T}, PALADIN = {T}, PRIEST = {T},
+  ROGUE = {T}, SHAMAN = {T}, WARLOCK = {T}, WARRIOR = {T}
 }
 
 Profile.PlayerHealth = {
@@ -535,37 +600,7 @@ MergeTable(Profile.PlayerHealth, {
   },
   Triggers = {
     _DC = 0,
-    MenuSync = false,
-    HideTabs = false,
-    Action = {},
-    ActionSync = {},
-
-    Default = { -- Default trigger
-      Enabled = true,
-      Static = false,
-      StanceEnabled = false,
-      DisabledBySpec = false,
-      ClassStances = SetClassStances(ClassStances, false),
-      HideAuras = false,
-      OffsetAll = true,
-      Action = {Type = 1},
-      Name = '',
-      GroupNumber = 1,
-      OrderNumber = 0,
-      TypeID = 'bartexturecolor',
-      Type = 'bar color',
-      ValueTypeID = '',
-      ValueType = '',
-      CanAnimate = false,
-      Animate = false,
-      AnimateSpeed = 0.01,
-      State = true,
-      AuraOperator = 'or',
-      Conditions = { All = false, {Operator = '>', Value = 0} },
-      Pars = {},
-      GetFnTypeID = 'none',
-      GetPars = {},
-    },
+    Default = DeepCopy(DefaultTriggers, nil, { ClassStances = SetClassStances(ClassStances, false) }),
   },
 } )
 --=============================================================================
@@ -677,37 +712,7 @@ MergeTable(Profile.PlayerPower, {
   },
   Triggers = {
     _DC = 0,
-    MenuSync = false,
-    HideTabs = false,
-    Action = {},
-    ActionSync = {},
-
-    Default = { -- Default trigger
-      Enabled = true,
-      Static = false,
-      StanceEnabled = false,
-      DisabledBySpec = false,
-      ClassStances = SetClassStances(ClassStances, false),
-      HideAuras = false,
-      OffsetAll = true,
-      Action = {Type = 1},
-      Name = '',
-      GroupNumber = 1,
-      OrderNumber = 0,
-      TypeID = 'bartexturecolor',
-      Type = 'bar color',
-      ValueTypeID = '',
-      ValueType = '',
-      CanAnimate = false,
-      Animate = false,
-      AnimateSpeed = 0.01,
-      State = true,
-      AuraOperator = 'or',
-      Conditions = { All = false, {Operator = '>', Value = 0} },
-      Pars = {},
-      GetFnTypeID = 'none',
-      GetPars = {},
-    },
+    Default = DeepCopy(DefaultTriggers, nil, { ClassStances = SetClassStances(ClassStances, false) }),
   },
 } )
 --=============================================================================
@@ -807,37 +812,7 @@ MergeTable(Profile.TargetHealth, {
   },
   Triggers = {
     _DC = 0,
-    MenuSync = false,
-    HideTabs = false,
-    Action = {},
-    ActionSync = {},
-
-    Default = { -- Default trigger
-      Enabled = true,
-      Static = false,
-      StanceEnabled = false,
-      DisabledBySpec = false,
-      ClassStances = SetClassStances(ClassStances, false),
-      HideAuras = false,
-      OffsetAll = true,
-      Action = {Type = 1},
-      Name = '',
-      GroupNumber = 1,
-      OrderNumber = 0,
-      TypeID = 'bartexturecolor',
-      Type = 'bar color',
-      ValueTypeID = '',
-      ValueType = '',
-      CanAnimate = false,
-      Animate = false,
-      AnimateSpeed = 0.01,
-      State = true,
-      AuraOperator = 'or',
-      Conditions = { All = false, {Operator = '>', Value = 0} },
-      Pars = {},
-      GetFnTypeID = 'none',
-      GetPars = {},
-    },
+    Default = DeepCopy(DefaultTriggers, nil, { ClassStances = SetClassStances(ClassStances, false) }),
   },
 } )
 --=============================================================================
@@ -934,37 +909,7 @@ MergeTable(Profile.TargetPower, {
   },
   Triggers = {
     _DC = 0,
-    MenuSync = false,
-    HideTabs = false,
-    Action = {},
-    ActionSync = {},
-
-    Default = { -- Default trigger
-      Enabled = true,
-      Static = false,
-      StanceEnabled = false,
-      DisabledBySpec = false,
-      ClassStances = SetClassStances(ClassStances, false),
-      HideAuras = false,
-      OffsetAll = true,
-      Action = {Type = 1},
-      Name = '',
-      GroupNumber = 1,
-      OrderNumber = 0,
-      TypeID = 'bartexturecolor',
-      Type = 'bar color',
-      ValueTypeID = '',
-      ValueType = '',
-      CanAnimate = false,
-      Animate = false,
-      AnimateSpeed = 0.01,
-      State = true,
-      AuraOperator = 'or',
-      Conditions = { All = false, {Operator = '>', Value = 0} },
-      Pars = {},
-      GetFnTypeID = 'none',
-      GetPars = {},
-    },
+    Default = DeepCopy(DefaultTriggers, nil, { ClassStances = SetClassStances(ClassStances, false) }),
   },
 } )
 --=============================================================================
@@ -972,8 +917,8 @@ MergeTable(Profile.TargetPower, {
 --=============================================================================
 ClassStances = { -- This is used for pet health and power
   All = false, Inverse = false, ClassName = '',
-  WARLOCK     = {T},
-  HUNTER      = {T},
+  WARLOCK = {T},
+  HUNTER  = {T},
 }
 
 Profile.PetHealth = {
@@ -1064,37 +1009,7 @@ MergeTable(Profile.PetHealth, {
   },
   Triggers = {
     _DC = 0,
-    MenuSync = false,
-    HideTabs = false,
-    Action = {},
-    ActionSync = {},
-
-    Default = { -- Default trigger
-      Enabled = true,
-      Static = false,
-      StanceEnabled = false,
-      DisabledBySpec = false,
-      ClassStances = SetClassStances(ClassStances, false),
-      HideAuras = false,
-      OffsetAll = true,
-      Action = {Type = 1},
-      Name = '',
-      GroupNumber = 1,
-      OrderNumber = 0,
-      TypeID = 'bartexturecolor',
-      Type = 'bar color',
-      ValueTypeID = '',
-      ValueType = '',
-      CanAnimate = false,
-      Animate = false,
-      AnimateSpeed = 0.01,
-      State = true,
-      AuraOperator = 'or',
-      Conditions = { All = false, {Operator = '>', Value = 0} },
-      Pars = {},
-      GetFnTypeID = 'none',
-      GetPars = {},
-    },
+    Default = DeepCopy(DefaultTriggers, nil, { ClassStances = SetClassStances(ClassStances, false) }),
   },
 } )
 --=============================================================================
@@ -1192,37 +1107,7 @@ MergeTable(Profile.PetPower, {
   },
   Triggers = {
     _DC = 0,
-    MenuSync = false,
-    HideTabs = false,
-    Action = {},
-    ActionSync = {},
-
-    Default = { -- Default trigger
-      Enabled = true,
-      Static = false,
-      StanceEnabled = false,
-      DisabledBySpec = false,
-      ClassStances = SetClassStances(ClassStances, false),
-      HideAuras = false,
-      OffsetAll = true,
-      Action = {Type = 1},
-      Name = '',
-      GroupNumber = 1,
-      OrderNumber = 0,
-      TypeID = 'bartexturecolor',
-      Type = 'bar color',
-      ValueTypeID = '',
-      ValueType = '',
-      CanAnimate = false,
-      Animate = false,
-      AnimateSpeed = 0.01,
-      State = true,
-      AuraOperator = 'or',
-      Conditions = { All = false, {Operator = '>', Value = 0} },
-      Pars = {},
-      GetFnTypeID = 'none',
-      GetPars = {},
-    },
+    Default = DeepCopy(DefaultTriggers, nil, { ClassStances = SetClassStances(ClassStances, false) }),
   },
 } )
 --=============================================================================
@@ -1336,37 +1221,7 @@ MergeTable(Profile.ManaPower, {
   },
   Triggers = {
     _DC = 0,
-    MenuSync = false,
-    HideTabs = false,
-    Action = {},
-    ActionSync = {},
-
-    Default = { -- Default trigger
-      Enabled = true,
-      Static = false,
-      StanceEnabled = false,
-      DisabledBySpec = false,
-      ClassStances = SetClassStances(ClassStances, false),
-      HideAuras = false,
-      OffsetAll = true,
-      Action = {Type = 1},
-      Name = '',
-      GroupNumber = 1,
-      OrderNumber = 0,
-      TypeID = 'bartexturecolor',
-      Type = 'bar color',
-      ValueTypeID = '',
-      ValueType = '',
-      CanAnimate = false,
-      Animate = false,
-      AnimateSpeed = 0.01,
-      State = true,
-      AuraOperator = 'or',
-      Conditions = { All = false, {Operator = '>', Value = 0} },
-      Pars = {},
-      GetFnTypeID = 'none',
-      GetPars = {},
-    },
+    Default = DeepCopy(DefaultTriggers, nil, { ClassStances = SetClassStances(ClassStances, false) }),
   },
 } )
 --=============================================================================
@@ -1492,37 +1347,7 @@ MergeTable(Profile.ComboBar, {
   },
   Triggers = {
     _DC = 0,
-    MenuSync = false,
-    HideTabs = false,
-    Action = {},
-    ActionSync = {},
-
-    Default = { -- Default trigger
-      Enabled = true,
-      Static = false,
-      StanceEnabled = false,
-      DisabledBySpec = false,
-      ClassStances = SetClassStances(ClassStances, false),
-      HideAuras = false,
-      OffsetAll = true,
-      Action = {Type = 1},
-      Name = '',
-      GroupNumber = 1,
-      OrderNumber = 0,
-      TypeID = 'bartexturecolor',
-      Type = 'bar color',
-      ValueTypeID = '',
-      ValueType = '',
-      CanAnimate = false,
-      Animate = false,
-      AnimateSpeed = 0.01,
-      State = true,
-      AuraOperator = 'or',
-      Conditions = { All = false, {Operator = '>', Value = 0} },
-      Pars = {},
-      GetFnTypeID = 'none',
-      GetPars = {},
-    },
+    Default = DeepCopy(DefaultTriggers, nil, { ClassStances = SetClassStances(ClassStances, false) }),
   },
 } )
 
@@ -1558,7 +1383,7 @@ To drag any bar around the screen use the left mouse button while pressing any m
 |cff00ff00Status|r
 All bars have status flags.  This tells a bar what to do based on a certain condition.  Each bar can have one or more flags active at the same time.  A flag with a higher priority will always override one with a lower.  The flags listed below are from highest priority to lowest.  Unlocking bars acts like a status.  It will override all flags to show the bars, The only flags it can't override is never show and hide not usable.
 
-   |cff00ffffHide not Usable|r Disable and hides the bar if it's not usable by the class or spec.
+   |cff00ffffHide not Usable|r Disable and hides the bar if it's not usable by the class or stance.
    |cff00ffffShow Always|r Always show the bar.  This doesn't override Hide not usable.
    |cff00ffffHide when Dead|r Hide the bar when the player is dead.
    |cff00ffffHide not Active|r Hide the bar when it's not active and out of combat.
@@ -1624,57 +1449,34 @@ Additional options will be found at the option panel for the bar when test mode 
 
 HelpText[#HelpText + 1] = [[
 |cff00ff00Triggers|r
-Triggers let you create an option that will only become active when a condition is met.
-Triggers activate in the following order. Static first, Conditional second, and Auras last.
+Triggers lets you modify things based on Specialization, Talents, Auras, and Conditions.
+They are executed in the order they appear from top to bottom.
 
-Triggers are sorted by tabs.  Each tab is part of the bar.  If the tab is empty you'll see an 'add' button. Clicking this will add a new trigger options panel. There is no limit to how many triggers you can create, create too many and you may experience lag in the options panel.
+The Trigger UI has 3 tabs:
+   |cffff00ffList tab|r shows all the triggers and allows you to move, copy, delete, etc
+   |cffff00ffActivation tab|r is what will cause a trigger to execute.
+   |cffff00ffDisplay tab|r is what a trigger will modify.
 
-Each trigger has 4 menu buttons.  These can be minimized or maximized by clicking them more than once.
+|cff00ffffList Tab|r
+If there are no triggers. Then you will only be able to add a trigger.  Click add. And the trigger will be added.
+    |cffff00ffStatic|r Will always make the trigger active.  Cause of this the Activate tab will be greyed out.
+    |cffff00ffDisable|r Will always make the trigger inactive. The Activate and Display tabs will be greyed out.
+    |cffff00ffAdd|r Will list <add here> tags.  Select the tag where you want the trigger to go. Then click add here button. Copy and Move work in the same way.
+    |cffff00ffSwap|r Works a little different.  When you click swap.  The swap tags will appear under each trigger.  The tag that appears under the trigger is the one it'll be swapped with.
+    |cffff00ffDelete|r Will remove the trigger.  To bypass the dialog box just hold down a modifier key (alt, shift, or control) while clicking the delete button.
+    |cffff00ffCancel|r Will exit the current edit function.
 
-|cff00ffffTYPE|r Creates the type of trigger, border, color, sound, etc.
-    |cffff00ffValue Type|r Lets you pick what type of value you want to trigger off of.  Each bar has its own set of value types.
-    |cffff00ffType|r Lets you pick different parts of the bar.  Border, color, background, etc.
-    |cffff00ffAuras|r Use a buff or debuff to execute a trigger.
+|cff00ffffActivate Tab|r
+Talents, auras and conditions edit functions are the same.  They're self explanatory.
+    |cffff00ffSpecialization|r Works the same way for bars except things are unchecked by default.
+    |cffff00ffTalents|r There are three pull down menus one for each talent tree tab.  Just pick a talent and it'll appear above.  Selecting 'none' from the menu will remove the talent.
+    |cffff00ffAuras|r By default an aura can match any debuff or buff based on the options picked. So for example you want to find any debuff that was of type disease.  You would click 'Buff' till it turns into 'Debuff'. Then click 'Check Debuff Types' and check off disease.
+      |cffa6c4ffAura input box|r This will auto match spell names as you type.  Or you can type in the spell ID of the aura instead.  If you want to use an aura that was on you.  Then start to type that aura name and it'll be the first in the list. To remove the aura listed above. Just hit enter without typing anything.
+    |cffff00ffConditions|r Self explanatory. But some bars will have input value names with a number after it.  That number matches the box of the bar.
 
-|cff00ffffVALUE|r Number to execute the trigger at, or can be inverse.  Depends on the Type.
-    |cffff00ffInverse|r For triggers that use 'active' then you can inverse this. Make it do the opposite.
-    |cffff00ffOperator|r If the trigger is a conditional trigger.
-        <       Less than
-        >       Greater than
-        <=     Less than or equal
-        >=     Greater than or equal
-        =       Equal
-        <>      Not equal
-        and   All auras (auras only)
-        or      At least one aura (auras only)
-    |cffff00ffValue|r The trigger will execute at this value.  If this is a percentage then it must be between 0 and 100. You can also "add" another condition.  The 'all' option if checked will make it so that all conditions have to be met for the trigger to execute.
-    |cffff00ffAdd|r Add another condition, this is the same as the current line, operator, value, etc.
-    |cffff00ffAll|r If this is checked then all conditions must be true. Otherwise just one needs to be true.
+|cff00ffffDisplay Tab|r
+Some bars only have one component.  So the name pulldown menu will only have one name in it.  The type pulldown menu picks what part of the bar you want to change.  The 'All' items work well with static triggers.
 
-    |cffff00ffAura name or SpellID|r  If auras was selected under type. Under the spell ID enter the exact spell or start typing part of the spell name.  As you do this, a dropdown box will appear.  If the mod already saw the spell then it will show it in white.  This works best if aura list is always on.  After the aura is added you change the following:
-
-        |cffff00ffOwn|r If checked the aura has to be cast from you.
-        |cffff00ffNot Active|r If checked then the aura can not be on the unit.
-        |cffff00ffUnit|r Name of the unit that will contain the aura.
-        |cffff00ffCondition|r Can set what type of condition you want to compare stacks to.
-        |cffff00ffStacks|r Number of stacks to compare.
-
-|cff00ffffNAME|r By default a trigger doesn't have a name.  Enter anything you want here.
-
-|cff00ffffUTIL|r Allows you to Swap, Move, Copy, and Delete
-
-    |cffff00ffSwap|r Swap a places with another trigger.  This option may not be available if the two triggers are not compatible.
-    |cffff00ffMove|r Move a trigger to a different tab.  This option is not available with one tab.
-    |cffff00ffCopy|r Copy a trigger to a different tab.  This option is not available if the trigger is not compatible with the destination tab.
-    |cffff00ffDelete|r Removes the trigger.  This can not be undone.
-
-Above the 4 menu buttons is Static and Disable.
-Static makes the trigger more like an option. It's always on.
-Disable makes the trigger not work.
-
-For more you can watch the video:]]
-HelpText[#HelpText + 1] = [[https://youtu.be/bey_dQBZlmA]]
-HelpText[#HelpText + 1] = [[
 
 |cff00ff00Aura List|r
 Found under General.  This will list any auras the mod comes in contact with.  Type the different units into the unit box seperated by a space.  The mod will only list auras from the units specified. Then click refresh to update the aura list with the latest auras.
@@ -1717,6 +1519,9 @@ local ChangesText = {}
 
 GUB.DefaultUB.ChangesText = ChangesText
 ChangesText[1] = [[
+Version 1.40
+|cff00ff00Triggers|r has been rewritten.  GUB will attempt to convert all your triggers over.  You may need to fix some triggers
+
 Version 1.30
 |cff00ff00Text|r font options has Changed.  Field width and field height has been removed. \n can be added in custom layout inside the () to do multiline text.  You may have to redo text options if you find something not where it was
 

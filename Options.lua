@@ -9,7 +9,7 @@
 local MyAddon, GUB = ...
 
 local DUB = GUB.DefaultUB.Default.profile
-local GD = GUB.DefaultUB
+local DefaultUB = GUB.DefaultUB
 
 local Main = GUB.Main
 local Bar = GUB.Bar
@@ -20,23 +20,18 @@ local ConvertPowerTypeHAP = Main.ConvertPowerTypeHAP
 local ConvertPowerType = Main.ConvertPowerType
 local ConvertCombatColor = Main.ConvertCombatColor
 local LSM = Main.LSM
-local Talents = Main.Talents
 
 -- localize some globals.
-local _
-local floor, ceil =
-      floor, ceil
-
-local strupper, strlower, strtrim, strfind, format, gmatch, strsplit, strsub, strjoin, tostring =
-      strupper, strlower, strtrim, strfind, format, gmatch, strsplit, strsub, strjoin, tostring
-local tonumber, gsub, min, max, tremove, tinsert, wipe, strsub =
-      tonumber, gsub, min, max, tremove, tinsert, wipe, strsub
+local _, _G =
+      _, _G
+local floor, strupper, strlower, strtrim, strfind, format, strsplit, strsub, strjoin, tostring =
+      floor, strupper, strlower, strtrim, strfind, format, strsplit, strsub, strjoin, tostring
+local tonumber, gsub, tremove, tinsert, tconcat     , wipe, strsub =
+      tonumber, gsub, tremove, tinsert, table.concat, wipe, strsub
 local ipairs, pairs, type, next, sort, select =
       ipairs, pairs, type, next, sort, select
-local InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print, GameTooltip, message, GetSpellInfo, IsModifierKeyDown =
-      InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print, GameTooltip, message, GetSpellInfo, IsModifierKeyDown
-local UnitReaction, GetAlternatePowerInfoByID, UnitAffectingCombat, GetTalentTabInfo =
-      UnitReaction, GetAlternatePowerInfoByID, UnitAffectingCombat, GetTalentTabInfo
+local InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print, GameTooltip, GetSpellInfo, IsModifierKeyDown, GetTalentTabInfo =
+      InterfaceOptionsFrame, HideUIPanel, GameMenuFrame, LibStub, print, GameTooltip, GetSpellInfo, IsModifierKeyDown, GetTalentTabInfo
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -67,7 +62,6 @@ local AddonMainOptions = MyAddon .. 'options'
 local AddonAlignSwapOptions = MyAddon .. 'options2'
 local AddonOptionsToGUB = MyAddon .. 'options3'
 local AddonMessageBoxOptions = MyAddon .. 'options4'
-local AddonProfileName = MyAddon .. 'profile'
 local AddonSlashOptions = MyAddon
 
 local DoFunctions = {}
@@ -75,17 +69,16 @@ local MainOptionsHideFrame = CreateFrame('Frame')
 local SwapAlignOptionsHideFrame = CreateFrame('Frame')
 local OutOfCombatFrame = CreateFrame('Frame')
 
-local SlashOptions = nil
-local OptionsToGUB = nil
-local MainOptions = nil
-local AlignSwapOptions = nil
-local MessageBoxOptions = nil
-local AlignSwapAnchor = nil
+local SlashOptions
+local OptionsToGUB
+local MainOptions
+local AlignSwapOptions
+local MessageBoxOptions
+local AlignSwapAnchor
 
-local ClipBoard = nil
-local TableData = nil
-local SelectedMenuButtonName = 'Main'
-local MenuButtons = nil
+local ClipBoard
+local TableData
+local MenuButtons
 
 local DebugText = ''
 
@@ -175,7 +168,7 @@ local o = {
   LayoutAnimationInTimeMax = 1,
   LayoutAnimationOutTimeMin = 0,
   LayoutAnimationOutTimeMax = 1,
-  LayoutAlignOffsetXMin = - 50,
+  LayoutAlignOffsetXMin = -50,
   LayoutAlignOffsetXMax = 50,
   LayoutAlignOffsetYMin = -50,
   LayoutAlignOffsetYMax = 50,
@@ -205,7 +198,7 @@ local o = {
   AlignSwapAdvancedMinMax = 25,
 
   -- Main options window size
-  MainOptionsWidth = 770,
+  MainOptionsWidth = 850,
   MainOptionsHeight = 500,
 
   -- Attribute options
@@ -392,14 +385,6 @@ local ValueType_TimeDropdown = {
   [22] = 'Seconds.00',
 }
 
-local ValueType_WholeDropdown = {
-  'Whole', -- 1
-}
-
-local ValueType_TextDropdown = {
-  [50] = 'Text',
-}
-
 local ValueType_NoneDropdown = {
   [100] = '',
 }
@@ -516,46 +501,26 @@ local ConvertFrameStrata = {
   'TOOLTIP',              -- 8
 }
 
-local TalentTab = {
-  ['T1=']  = 1,
-  ['T2=']  = 2,
-  ['T3=']  = 3,
-  ['T1<>'] = 1,
-  ['T2<>'] = 2,
-  ['T3<>'] = 3,
-}
-
-local Operator_WholePercentDropdown = {
+local Operator_NumberDropdown = {
   '<',             -- 1
   '>',             -- 2
   '<=',            -- 3
   '>=',            -- 4
   '=',             -- 5
   '<>',            -- 6
-  'T1=',           -- 7
-  'T2=',           -- 8
-  'T3=',           -- 9
-  'T1<>',          -- 10
-  'T2<>',          -- 11
-  'T3<>',          -- 12
 }
 
-local Operator_AurasDropdown = {
-  'and',    -- 1
-  'or',     -- 2
-}
-
-local Operator_StringDropdown = {
+local Operator_TextStateDropdown = {
   '=',  -- 1
   '<>', -- 2
 }
 
 local TriggerOperatorDropdown = {
-  whole   = Operator_WholePercentDropdown,
-  percent = Operator_WholePercentDropdown,
-  float   = Operator_WholePercentDropdown,
-  string  = Operator_StringDropdown,
-  auras   = Operator_AurasDropdown,
+  whole   = Operator_NumberDropdown,
+  percent = Operator_NumberDropdown,
+  decimal = Operator_NumberDropdown,
+  text    = Operator_TextStateDropdown,
+  state   = Operator_TextStateDropdown,
 }
 
 local TriggerSoundChannelDropdown = {
@@ -564,6 +529,11 @@ local TriggerSoundChannelDropdown = {
   Music = 'Music',
   SFX = 'Sound Effects',
   Dialog = 'Dialog',
+}
+
+local TriggerStateValueDropdown = {
+  'True',   -- 1
+  'False',  -- 2
 }
 
 local AuraStackOperatorDropdown = {
@@ -575,26 +545,38 @@ local AuraStackOperatorDropdown = {
   '<>',            -- 6
 }
 
+local DebuffTypesDropdown = {
+  'Curse',         -- 1
+  'Disease',       -- 2
+  'Enrage',        -- 3
+  'Magic',         -- 4
+  'Poison',        -- 5
+}
+
 local AnimationTypeDropdown = {
   alpha = 'Alpha',
   scale = 'Scale',
 }
 
-local ConvertTypeIDColorIcon = {
-  bartexturecolor = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerBarColor]],
-  bartexture      = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerBar]],
-  border          = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerBorder]],
-  bordercolor     = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerBorderColor]],
-  texturescale    = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerTextureScale]],
-  baroffset       = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerChangeOffset]],
-  sound           = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerSound]],
-  background      = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerBackground]],
-  backgroundcolor = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerBackgroundColor]],
-  fontsize        = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerTextChangeSize]],
-  fontoffset      = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerTextChangeOffset]],
-  fontcolor       = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerTextColor]],
-  fonttype        = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerTextType]],
-  fontstyle       = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerTextOutline]],
+local TriggerTypeColorIcon = {
+  bartexturecolor       = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerBarColor]],
+  bartexture            = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerBar]],
+  border                = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerBorder]],
+  bordercolor           = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerBorderColor]],
+  texturescale          = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerTextureScale]],
+  baroffset             = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerChangeOffset]],
+  sound                 = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerSound]],
+  background            = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerBackground]],
+  backgroundcolor       = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerBackgroundColor]],
+  fontsize              = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerTextChangeSize]],
+  fontoffset            = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerTextChangeOffset]],
+  fontcolor             = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerTextColor]],
+  fonttype              = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerTextType]],
+  fontstyle             = [[Interface\Addons\GalvinUnitBarsClassic\Textures\GUB_TriggerTextOutline]],
+  regionborder          = [[Interface\AddOns\GalvinUnitBarsClassic\Textures\GUB_TriggerBorder]],
+  regionbordercolor     = [[Interface\AddOns\GalvinUnitBarsClassic\Textures\GUB_TriggerBorderColor]],
+  regionbackground      = [[Interface\AddOns\GalvinUnitBarsClassic\Textures\GUB_TriggerBackground]],
+  regionbackgroundcolor = [[Interface\AddOns\GalvinUnitBarsClassic\Textures\GUB_TriggerBackgroundColor]],
 }
 
 --*****************************************************************************
@@ -613,6 +595,15 @@ local function ToHex(Object)
 end
 
 -------------------------------------------------------------------------------
+-- TriggerTypeToIcon
+--
+-- Returns an icon to inserted into text for triggers
+-------------------------------------------------------------------------------
+local function TriggerTypeToIcon(Type,Size)
+  return format('|T%s:%s|t', TriggerTypeColorIcon[Type], Size)
+end
+
+-------------------------------------------------------------------------------
 -- FindMenuItem
 --
 -- Searches for a Value in an indexed array. Returns the Index found. or 1
@@ -626,7 +617,7 @@ end
 --            this equals the first item in the menu.
 -------------------------------------------------------------------------------
 local function FindMenuItem(Table, Value)
-  local Item = nil
+  local Item
 
   Value = strlower(Value)
   for Index = 1, #Table do
@@ -993,7 +984,7 @@ local function AddOptionsBranch(TreeGroups, BarType, TableName, Options)
   -- Add hidden to make tree expand and collapse
   local Hidden = Options.hidden
   Options.hidden = function()
-    local Hide = true
+    local Hide
 
     if Gdata.ExpandAll then
       Hide = false
@@ -1062,7 +1053,7 @@ local function OpenOptions()
   else
     OutOfCombatFrame:RegisterEvent('PLAYER_REGEN_ENABLED')
     OutOfCombatFrame:SetScript('OnEvent', OpenOptionsOOC)
-    print(GD.InCombatOptionsMessage2)
+    print(DefaultUB.InCombatOptionsMessage2)
   end
 end
 
@@ -1095,7 +1086,7 @@ local function CreateSlashOptions()
         name = 'about',
         order = 2,
         func = function()
-                 print(AddonName, format('Version %.2f', GD.Version / 100))
+                 print(AddonName, format('Version %.2f', DefaultUB.Version / 100))
                end,
       },
       config = CreateToGUBOptions(2, '', 'Opens a movable options frame'),
@@ -1146,9 +1137,6 @@ end
 local function CreateColorAllOptions(BarType, TableName, ColorPath, KeyName, Order, Name)
   local UBF = UnitBarsF[BarType]
   local Names = UBF.Names
-
-  -- Get max colors
-  local MaxColors = #Main:GetUB(BarType, ColorPath)
 
   local ColorAllOptions = {
     type = 'group',
@@ -1504,14 +1492,14 @@ end
 -------------------------------------------------------------------------------
 local function CreateBarSizeOptions(BarType, TableName, Order, Name)
   local UBF = UnitBarsF[BarType]
-  local BarSizeOptions = nil
+  local BarSizeOptions
 
   local function SetSize()
     local UB = UBF.UnitBar[TableName]
     for KeyName in pairs(BarSizeOptions.args) do
       local SliderArgs = BarSizeOptions.args[KeyName]
-      local Min = nil
-      local Max = nil
+      local Min
+      local Max
 
       if KeyName == 'Width' or KeyName == 'Height' then
         Min = o.UnitBarSizeMin
@@ -2188,8 +2176,6 @@ end
 -- Order          Position to place the options at
 -------------------------------------------------------------------------------
 local function CreateTextValueOptions(UBF, TLA, DUBTexts, Texts, TextLine, Order)
-  local ValueNameMenu = DUBTexts._ValueNameMenu
-
   local Text = Texts[TextLine]
   local ValueNames = Text.ValueNames
   local ValueTypes = Text.ValueTypes
@@ -2198,7 +2184,7 @@ local function CreateTextValueOptions(UBF, TLA, DUBTexts, Texts, TextLine, Order
   local ValueIndexName = 'ValueIndexOptions%s'
 
   -- Forward Value option arguments
-  local VOA = nil
+  local VOA
 
   TLA.ValueOptions = {
     type = 'group',
@@ -2511,545 +2497,6 @@ local function CreateTextOptions(BarType, TableName, Order, Name)
 end
 
 -------------------------------------------------------------------------------
--- AddConditionOption
---
--- Adds a condition options for the trigger.
---
--- Subfunction of AddTriggerOption()
---
--- Order       Position inside the trigger option.
--- TO          Trigger options to modify.
--- UBF         Unit bar frame to update the bar.
--- BBar        Access to the bar functions to update triggers.
--- Condition   Condition being worked on.
--- Trigger     The trigger that contains the condition.
--------------------------------------------------------------------------------
-local function AddConditionOption(Order, TO, UBF, BBar, Condition, Trigger)
-  local TOA = TO.args
-  local HexSt = ToHex(Condition)
-  local ConditionOperator = 'ConditionOperator' .. HexSt
-  local ConditionValue  = 'ConditionValue'  .. HexSt
-  local ConditionTalent = 'ConditionTalent' .. HexSt
-  local ConditionDelete = 'ConditionDelete' .. HexSt
-  local ConditionSpacer = 'ConditionSpacer' .. HexSt
-
-  local IsTalent = nil
-
-  -- Operator
-  TOA[ConditionOperator] = {
-    type = 'select',
-    name = 'Operator',
-    width = 'half',
-    desc = 'Set the operator to activate at',
-    order = function()
-              return Condition.OrderNumber + Order + 0.1
-            end,
-    get = function()
-            local Value = FindMenuItem(TriggerOperatorDropdown[Trigger.ValueTypeID], Condition.Operator)
-
-            -- Convert value to operator (string)
-            local Operator = TriggerOperatorDropdown[Trigger.ValueTypeID][Value]
-            IsTalent = TalentTab[Operator]
-
-            return Value
-          end,
-    set = function(Info, Value)
-            local Operator = TriggerOperatorDropdown[Trigger.ValueTypeID][Value]
-            Condition.Operator = Operator
-            IsTalent = TalentTab[Operator]
-
-            -- Update bar to reflect trigger changes
-            BBar:CheckTriggers()
-            UBF:Update()
-            BBar:Display()
-          end,
-    values = function()
-               return TriggerOperatorDropdown[Trigger.ValueTypeID]
-             end,
-    style = 'dropdown',
-    hidden = function()
-               local ValueTypeID = Trigger.ValueTypeID
-
-               return Trigger.Static or ValueTypeID == 'auras' or ValueTypeID == 'state'
-             end,
-  }
-
-  -- Value
-  TOA[ConditionValue] = {
-    type = 'input',
-    name = function()
-             return format('Value (%s)', Trigger.ValueTypeID)
-           end,
-    order = function()
-              return Condition.OrderNumber + Order + 0.2
-            end,
-    desc = function()
-             local ValueTypeID = Trigger.ValueTypeID
-
-             if ValueTypeID == 'percent' then
-               return 'Enter a percentage as a whole number'
-             elseif ValueTypeID == 'string' then
-               return 'Enter any text, match is not case sensitive and not exact'
-             else
-               return 'Enter any number'
-             end
-           end,
-    get = function()
-            -- Turn into a string. Input takes strings.
-            return tostring(tonumber(Condition.Value) or 0)
-          end,
-    set = function(Info, Value)
-            -- Change to number
-            local ValueTypeID = Trigger.ValueTypeID
-
-            if ValueTypeID == 'string' then
-              Condition.Value = Value
-            elseif ValueTypeID == 'float' then
-              Condition.Value = tonumber(Value) or 0
-            else
-              Condition.Value = floor(tonumber(Value) or 0)
-            end
-
-            -- Update bar to reflect trigger changes
-            BBar:CheckTriggers()
-            UBF:Update()
-            BBar:Display()
-          end,
-    hidden = function()
-               local ValueTypeID = Trigger.ValueTypeID
-
-               return IsTalent ~= nil or Trigger.Static or ValueTypeID == 'auras' or ValueTypeID == 'state'
-             end,
-  }
-  -- Value Talents
-  TOA[ConditionTalent] = {
-    type = 'select',
-    dialogControl = 'GUB_Dropdown_Select',
-    name = function()
-             if IsTalent == nil then
-               return 'Talent'
-             else
-               return format('Talent (%s)', GetTalentTabInfo(IsTalent) or '')
-             end
-           end,
-    order = function()
-              return Condition.OrderNumber + Order + 0.2
-            end,
-    get = function()
-            local Value = tostring(Condition.Value)
-            local Dropdown = nil
-
-            Dropdown = Talents[IsTalent].Dropdown
-            Value = FindMenuItem(Dropdown, Value)
-
-            -- Save value as a string
-            Condition.Value = Dropdown[Value]
-
-            -- Update bar to reflect trigger changes
-            BBar:CheckTriggers()
-            UBF:Update()
-            BBar:Display()
-
-            return Value
-          end,
-    set = function(Info, Value)
-            local Dropdown = nil
-
-            Dropdown = Talents[IsTalent].Dropdown
-            Condition.Value = Dropdown[Value]
-
-            -- Update bar to reflect trigger changes
-            BBar:CheckTriggers()
-            UBF:Update()
-            BBar:Display()
-          end,
-    values = function()
-               return Talents[IsTalent].IconDropdown
-             end,
-    style = 'dropdown',
-    hidden = function()
-               return IsTalent == nil
-             end,
-  }
-  -- Delete
-  TOA[ConditionDelete] = {
-    type = 'execute',
-    order = function()
-              return Condition.OrderNumber + Order + 0.3
-            end,
-    name = 'Delete',
-    width = 'half',
-    desc = 'Delete this condition',
-    func = function()
-             tremove(Trigger.Conditions, Condition.OrderNumber)
-
-             -- Delete this option.
-             TOA[ConditionOperator] = nil
-             TOA[ConditionValue] = nil
-             TOA[ConditionTalent] = nil
-             TOA[ConditionDelete] = nil
-             TOA[ConditionSpacer] = nil
-
-             -- Update bar to reflect trigger changes
-             BBar:CheckTriggers()
-             UBF:Update()
-             BBar:Display()
-
-             HideTooltip(true)
-           end,
-    hidden = function()
-               local ValueTypeID = Trigger.ValueTypeID
-
-               return Trigger.Static or ValueTypeID == 'auras' or ValueTypeID == 'state' or #Trigger.Conditions == 1
-             end,
-  }
-  -- Add
-  if TOA.ConditionAdd == nil then
-    TOA.ConditionAdd = {
-      type = 'execute',
-      order = function()
-                return #Trigger.Conditions + Order + 0.4
-              end,
-      name = 'Add',
-      width = 'half',
-      desc = 'Add a new condition below this one',
-      func = function()
-               local Conditions = Trigger.Conditions
-               local C = {}
-
-               Main:CopyTableValues(Conditions[#Conditions], C, true)
-               Conditions[#Conditions + 1] = C
-
-               -- Add new condition option.
-               BBar:CheckTriggers()
-               AddConditionOption(Order, TO, UBF, BBar, C, Trigger)
-
-               -- Update bar to reflect trigger changes
-               UBF:Update()
-               BBar:Display()
-
-               HideTooltip(true)
-             end,
-      hidden = function()
-                 local ValueTypeID = Trigger.ValueTypeID
-
-                 return Trigger.Static or ValueTypeID == 'auras' or ValueTypeID == 'state'
-               end,
-    }
-  end
-  -- All
-  if TOA.ConditionAll == nil then
-    TOA.ConditionAll = {
-      type = 'toggle',
-      name = 'All',
-      width = 'half',
-      desc = 'If checked, then all conditions must be true',
-      order = Order + 1.5,
-      get = function()
-              return Trigger.Conditions.All
-            end,
-      set = function(Info, Value)
-              Trigger.Conditions.All = Value
-
-              -- Update bar to reflect trigger changes
-              BBar:CheckTriggers()
-              UBF:Update()
-              BBar:Display()
-            end,
-      hidden = function()
-                 local ValueTypeID = Trigger.ValueTypeID
-
-                 return Trigger.Static or ValueTypeID == 'auras' or ValueTypeID == 'state'
-               end,
-    }
-  end
-  -- Create spacer that can move.
-  TOA[ConditionSpacer] = {
-    type = 'description',
-    name = '',
-    order = function()
-              return Condition.OrderNumber + Order + 0.9
-            end,
-    width = 'full',
-    hidden = function()
-               local ValueTypeID = Trigger.ValueTypeID
-
-               return Trigger.Static or ValueTypeID == 'auras' or ValueTypeID == 'state'
-             end,
-  }
-end
-
--------------------------------------------------------------------------------
--- AddAuraOption
---
--- Adds an aura that can be modified
---
--- Subfunction of AddTriggerOption()
---
--- Order    Position in the options.
--- UBF      Unitbar frame to access the bar functions.
--- BBar     Access to bar functions.
--- TO       Trigger option space to add the aura in
--- SpellID  Aura to add.
--- Trigger  Trigger holding the aura.
--------------------------------------------------------------------------------
-local function AddAuraOption(Order, UBF, BBar, TO, SpellID, Trigger)
-  local AuraGroup = 'Aura' .. SpellID
-  local Name, _, Icon = GetSpellInfo(SpellID)
-
-  -- Check if the spell was removed from the game.
-  if Name == nil then
-    Name = format('%s removed from the game', SpellID)
-    Icon = [[INTERFACE\ICONS\INV_MISC_QUESTIONMARK]]
-  end
-
-  TO.args[AuraGroup] = {
-    type = 'group',
-    name = format('|T%s:20:20:0:5|t |cFFFFFFFF%s|r (%s)', Icon, Name, SpellID),
-    order = Order + SpellID,
-    dialogInline = true,
-    hidden = function()
-               return Trigger.HideAuras or Trigger.Static or Trigger.ValueTypeID ~= 'auras'
-             end,
-    get = function(Info)
-            local KeyName = Info[#Info]
-            local Aura = Trigger.Auras[SpellID]
-
-            if KeyName == 'StackOperator' then
-              return FindMenuItem(AuraStackOperatorDropdown, Aura.StackOperator)
-            elseif KeyName == 'Stacks' then
-              return tostring(Aura.Stacks or 0)
-            else
-              return Aura[KeyName]
-            end
-          end,
-    set = function(Info, Value)
-            local KeyName = Info[#Info]
-
-            if KeyName == 'Stacks' then
-              Value = tonumber(Value) or 0
-            elseif KeyName == 'StackOperator' then
-              Value = AuraStackOperatorDropdown[Value]
-            elseif KeyName == 'Unit' then
-              Value = strtrim(Value)
-            end
-
-            Trigger.Auras[SpellID][KeyName] = Value
-
-            -- update the bar
-            BBar:CheckTriggers()
-            UBF:Update()
-            BBar:Display()
-          end,
-    args = {
-      RemoveAura = {
-        type = 'execute',
-        name = 'Remove',
-        desc = 'Remove aura',
-        order = 1,
-        width = 'half',
-        func = function()
-                 TO.args[AuraGroup] = nil
-                 Trigger.Auras[SpellID] = nil
-
-                 -- update the bar
-                 BBar:CheckTriggers()
-                 UBF:Update()
-                 BBar:Display()
-
-                 HideTooltip(true)
-               end,
-      },
-      SpacerHalf = CreateSpacer(2, 'half'),
-      NotActive = {
-        type = 'toggle',
-        name = 'Not Active',
-        desc = 'If check, the aura can not be on the unit',
-        order = 3,
-      },
-      Own = {
-        type = 'toggle',
-        name = 'Own',
-        desc = 'This aura must be cast by you',
-        order = 4,
-        width = 'half',
-        hidden = function()
-                   return Trigger.Auras[SpellID].NotActive
-                 end,
-      },
-      AuraGroup = {
-        type = 'group',
-        name = '',
-        hidden = function()
-                   HideTooltip(true)
-                   return Trigger.Auras[SpellID].NotActive
-                 end,
-        args = {
-          Unit = {
-            type = 'input',
-            name = 'Unit',
-            order = 11,
-          },
-          StackOperator = {
-            type = 'select',
-            name = 'Operator',
-            width = 'half',
-            order = 12,
-            values = AuraStackOperatorDropdown,
-          },
-          Stacks = {
-            type = 'input',
-            name = 'Stacks',
-            width = 'half',
-            order = 13,
-          },
-        },
-      },
-    },
-  }
-end
-
--------------------------------------------------------------------------------
--- CreateOffsetOption
---
--- Create options to offset the size of bar
---
--- Subfunction of AddTriggerOption()
---
--- Order    Position in the options.
--- UBF      Unitbar frame to access the bar functions.
--- BBar     Access to bar functions.
--- Trigger  Trigger being modified.
--------------------------------------------------------------------------------
-local function CreateOffsetOption(Order, UBF, BBar, Trigger)
-  local OffsetOption = {
-    type = 'group',
-    name = '',
-    order = Order,
-    get = function(Info)
-            local KeyName = Info[#Info]
-            local Pars = Trigger.Pars
-            local p1, p2, p3, p4 = Pars[1], Pars[2], Pars[3], Pars[4]
-
-            if KeyName == 'Left' or KeyName == 'All' then
-              return p1
-            elseif KeyName == 'Right' then
-              return p2
-            elseif KeyName == 'Top' then
-              return p3
-            elseif KeyName == 'Bottom' then
-              return p4
-            end
-
-            return p1, p2, p3, p4
-          end,
-    set = function(Info, Value)
-            local KeyName = Info[#Info]
-            local Pars = Trigger.Pars
-            local p1, p2, p3, p4 = Pars[1], Pars[2], Pars[3], Pars[4]
-
-            if KeyName == 'All' then
-              p1 = Value
-              p2 = -Value
-              p3 = -Value
-              p4 = Value
-            elseif KeyName == 'Left' then
-              p1 = Value
-            elseif KeyName == 'Right' then
-              p2 = Value
-            elseif KeyName == 'Top' then
-              p3 = Value
-            elseif KeyName == 'Bottom' then
-              p4 = Value
-            end
-
-            Pars[1], Pars[2], Pars[3], Pars[4] = p1, p2, p3, p4
-
-            -- Update the triggers here for better performance
-            -- Dont need to do a checktriggers here.
-            UBF:Update()
-            BBar:Display()
-          end,
-    hidden = function()
-               return Trigger.TypeID ~= 'baroffset'
-             end,
-    args = {
-      OffsetAll = {
-        type = 'toggle',
-        name = 'All',
-        order = 1,
-        get = function()
-                return Trigger.OffsetAll
-              end,
-        set = function(Info, Value)
-                Trigger.OffsetAll = Value
-              end,
-        desc = 'Change offset with one value'
-      },
-      Spacer = CreateSpacer(2),
-      All = {
-        type = 'range',
-        name = 'Offset',
-        order = 3,
-        width = 'double',
-        hidden = function()
-                   return not Trigger.OffsetAll
-                 end,
-        min = o.TriggerBarOffsetAllMin,
-        max = o.TriggerBarOffsetAllMax,
-        step = 1,
-      },
-      Left = {
-        type = 'range',
-        name = 'Left',
-        order = 4,
-        hidden = function()
-                   return Trigger.OffsetAll
-                 end,
-        min = o.TriggerBarOffsetLeftMin,
-        max = o.TriggerBarOffsetLeftMax,
-        step = 1,
-      },
-      Right = {
-        type = 'range',
-        name = 'Right',
-        order = 5,
-        hidden = function()
-                   return Trigger.OffsetAll
-                 end,
-        min = o.TriggerBarOffsetRightMin,
-        max = o.TriggerBarOffsetRightMax,
-        step = 1,
-      },
-      Top = {
-        type = 'range',
-        name = 'Top',
-        order = 6,
-        hidden = function()
-                   return Trigger.OffsetAll
-                 end,
-        min = o.TriggerBarOffsetTopMin,
-        max = o.TriggerBarOffsetTopMax,
-        step = 1,
-      },
-      Bottom = {
-        type = 'range',
-        name = 'Bottom',
-        order = 7,
-        hidden = function()
-                   return Trigger.OffsetAll
-                 end,
-        min = o.TriggerBarOffsetBottomMin,
-        max = o.TriggerBarOffsetBottomMax,
-        step = 1,
-      },
-    },
-  }
-
-  return OffsetOption
-end
-
--------------------------------------------------------------------------------
 -- CreateStanceOptions
 --
 -- Create options to change stances for the trigger
@@ -3061,6 +2508,7 @@ end
 -- BBar            Access to bar functions.
 -- ClassStancesTP  String or table, if string then its a table path to the ClassStances table
 -- BBar            Only used with triggers
+-- DisableFn     Only used with triggers
 -------------------------------------------------------------------------------
 local function MarkMenuStance(ClassDropdown, SelectClassDropdown, ClassStances)
 
@@ -3099,15 +2547,15 @@ local function GetClassStancesTable(BarType, ClassStancesTP)
   end
 end
 
-local function CreateStanceOptions(BarType, Order, ClassStancesTP, BBar)
+local function CreateStanceOptions(BarType, Order, ClassStancesTP, BBar, DisableFn)
   local UBF = UnitBarsF[BarType]
-  local ClassStanceNames = GD.ClassStanceNames
+  local ClassStanceNames = DefaultUB.ClassStanceNames
   local PlayerClass = Main.PlayerClass
   local ClassDropdown = {}
   local SelectClassDropdown = {}
   local StanceDropdown = {}
   local MyClassFound = false
-  local CSD = nil
+  local CSD
   local ClassStances = GetClassStancesTable(BarType, ClassStancesTP)
   local Index = 1
 
@@ -3159,10 +2607,10 @@ local function CreateStanceOptions(BarType, Order, ClassStancesTP, BBar)
 
   local StanceOptions = {
     type = 'group',
---  dialogInline = true,
+    dialogInline = true,
     name = function()
              MarkMenuStance(ClassDropdown, SelectClassDropdown, GetClassStancesTable(BarType, ClassStancesTP))
-             return 'Stance'
+             return ''
            end,
     order = Order,
     disabled = function()
@@ -3234,13 +2682,20 @@ local function CreateStanceOptions(BarType, Order, ClassStancesTP, BBar)
         desc = 'Matches all classes and stances',
         width = 'half',
         order = 1,
+        disabled = function()
+                     if DisableFn then
+                       return DisableFn()
+                     else
+                       return false
+                     end
+                   end,
       },
       Inverse = {
         type = 'toggle',
         name = 'Inverse',
         order = 2,
         disabled = function()
-                     return GetClassStancesTable(BarType, ClassStancesTP).All
+                     return DisableFn and DisableFn() or GetClassStancesTable(BarType, ClassStancesTP).All
                    end,
       },
       Reset = {
@@ -3263,7 +2718,10 @@ local function CreateStanceOptions(BarType, Order, ClassStancesTP, BBar)
                end,
         confirm = function()
                     return 'This will reset your class stance settings'
-                  end
+                  end,
+        disabled = function()
+                     return DisableFn and DisableFn() or false
+                   end,
       },
       Clear = {
         type = 'execute',
@@ -3293,51 +2751,50 @@ local function CreateStanceOptions(BarType, Order, ClassStancesTP, BBar)
         confirm = function()
                     return 'This will uncheck your class stance settings'
                   end,
-        hidden = function()
-                   return BBar ~= nil
-                 end,
-      },
-      Spacer10 = CreateSpacer(10),
-      Class = {
-        type = 'select',
-        name = 'Class',
-        order = 11,
-        style = 'dropdown',
-        values = SelectClassDropdown,
         disabled = function()
-                     return GetClassStancesTable(BarType, ClassStancesTP).All
+                     return DisableFn and DisableFn() or false
                    end,
       },
-      Spacer20 = CreateSpacer(20),
-      StanceSubGroup = {
+      StanceGroup = {
         type = 'group',
-        dialogInline = true,
-        name = 'Stance Name',
-        order = 21,
+        name = '',
+        order = 5,
+        disabled = function()
+                     return DisableFn and DisableFn() or GetClassStancesTable(BarType, ClassStancesTP).All
+                   end,
         args = {
+          Class = {
+            type = 'select',
+            name = 'Class',
+            order = 1,
+            style = 'dropdown',
+            values = SelectClassDropdown,
+          },
+          Spacer2 = CreateSpacer(2, 'half'),
           Enabled = {
             type = 'toggle',
             name = 'Enable',
-            order = 1,
-            disabled = function()
-                         return GetClassStancesTable(BarType, ClassStancesTP).All
-                       end,
+            order = 3,
           },
           Spacer10 = CreateSpacer(10),
           Stance = {
             type = 'multiselect',
             name = '',
             order = 11,
-            width = 'full',
-            dialogControl = 'Dropdown',
+            width = 'normal',
+            --dialogControl = 'Dropdown',
             values = function()
                        return StanceDropdown[GetClassStancesTable(BarType, ClassStancesTP).ClassName]
                      end,
             disabled = function()
-                         local ClassStances = GetClassStancesTable(BarType, ClassStancesTP)
-                         local ClassNameUpper = ConvertPlayerClass[ClassStances.ClassName]
+                         if DisableFn and DisableFn() then
+                           return true
+                         else
+                           local ClassStances = GetClassStancesTable(BarType, ClassStancesTP)
+                           local ClassNameUpper = ConvertPlayerClass[ClassStances.ClassName]
 
-                         return ClassStances.All or not ClassStances[ClassNameUpper].Enabled
+                           return ClassStances.All or not ClassStances[ClassNameUpper].Enabled
+                         end
                        end,
             hidden = function()
                        return StanceDropdown[GetClassStancesTable(BarType, ClassStancesTP).ClassName] == nil
@@ -3347,6 +2804,7 @@ local function CreateStanceOptions(BarType, Order, ClassStancesTP, BBar)
             type = 'description',
             name = 'This class has no stances',
             order = 12,
+            fontSize = 'medium',
             hidden = function()
                        return StanceDropdown[GetClassStancesTable(BarType, ClassStancesTP).ClassName] ~= nil
                      end,
@@ -3360,1283 +2818,2008 @@ local function CreateStanceOptions(BarType, Order, ClassStancesTP, BBar)
 end
 
 -------------------------------------------------------------------------------
--- AddTriggerOption
+-- CreateTriggerDisplayOptions
 --
--- Adds an option window under a group to modify the trigger settings.
+-- Subfunction of CreateTriggerTabOptions()
 --
--- SubFunction of CreateTriggerOptions
---
--- UBF             Unitbar frame to access the bar functions.
--- BBar            The bar object to access the bar DB functions.
--- TOA             Trigger option arguments. Trigger options get added here.
--- GroupNames      Quick access to keyname for groups.
--- ClipBoard       Clipboard to swap, copy, move triggers.
--- Groups          So each option knows what pull down menus to use, etc
--- Triggers        Whole triggers table.
--- Trigger         Trigger to add. or GroupNumber to add 'add' and util buttons.
+-- Creates options to create the displaying of the triggers
 -------------------------------------------------------------------------------
-local function DeleteTriggerOption(TGA, Trigger)
-  local ToHexSt = ToHex(Trigger)
+local function CreateTriggerDisplayOptions(Order, UBF, BBar, Trigger)
+  local TriggerData = BBar.TriggerData
+  local GroupsDropdown = TriggerData.GroupsDropdown
+  local Groups = TriggerData.Groups
+  local OT = GUB.Bar.TriggerObjectTypes
+  local TypeBorder =     {OT.BackgroundBorder,
+                          OT.RegionBorder     }
+  local TypeColor =      {OT.BackgroundBorderColor,
+                          OT.BackgroundColor,
+                          OT.BarColor,
+                          OT.RegionBorderColor,
+                          OT.RegionBackgroundColor }
+  local TypeBackground = {OT.BackgroundBackground,
+                          OT.RegionBackground     }
+  local Name = ''
 
-  TGA['Trigger' .. ToHexSt] = nil
-  TGA['Clear' .. ToHexSt] = nil
-  TGA['Paste' .. ToHexSt] = nil
+  ----------------------
+  -- TriggerDisplayGroup
+  ----------------------
+  local function TriggerDisplayGroup(Order, ObjectTypes, Args)
+    return {
+      type = 'group',
+      name = function()
+               return Name
+             end,
+      order = Order,
+      dialogInline = true,
+      hidden = function()
+                 local Found = false
+                 for _, ObjectType in pairs(ObjectTypes) do
+                   if Trigger.ObjectType == ObjectType then
+                     Found = true
+                     break
+                   end
+                 end
+                 return not Found
+               end,
+      args = Args,
+    }
+  end
+
+  ----------------
+  -- Color Options
+  ----------------
+  local ColorOptions = {
+    type = 'group',
+    name = '',
+    order = 100,
+    dialogInline = true,
+    hidden = function()
+               return strfind(Trigger.ObjectType, 'color') == nil
+             end,
+    args = {
+      Color = {
+        type = 'color',
+        name = 'Color',
+        order = 1,
+        width = 'half',
+        get = function()
+                return Trigger.Par1, Trigger.Par2, Trigger.Par3, Trigger.Par4
+              end,
+        set = function(Info, r, g, b, a)
+                Trigger.Par1, Trigger.Par2, Trigger.Par3, Trigger.Par4 = r, g, b, a
+
+                -- Dont need to do a checktriggers here
+                UBF:Update()
+                BBar:Display()
+              end,
+      },
+      ColorType = {
+        type = 'select',
+        name = 'Color Type',
+        desc = 'This will override the current color, if there is a new one to replace it with',
+        order = 2,
+        values = Bar.TriggerColorPulldown,
+        get = function()
+                return Bar.TriggerConvertColorIndex[Trigger.ColorFnType]
+              end,
+        set = function(Info, Value)
+                Trigger.ColorFnType = Bar.TriggerConvertColorIndex[Value]
+
+                -- Need to do a check triggers when changing color type
+                BBar:CheckTriggers()
+                UBF:Update()
+                BBar:Display()
+              end,
+      },
+      ColorUnit = {
+        type = 'input',
+        name = 'Color Unit',
+        desc = 'Enter the unit you want to get the color from',
+        order = 3,
+        hidden = function()
+                   return Trigger.ColorFnType == ''
+                 end,
+      },
+    },
+  }
+
+  ------------------
+  -- Animate Options
+  ------------------
+  local AnimateOptions = {
+    type = 'group',
+    name = '',
+    order = 1,
+    dialogInline = true,
+    hidden = function()
+               return not Trigger.CanAnimate
+             end,
+    args = {
+      Animate = {
+        type = 'toggle',
+        name = 'Animate',
+        desc = 'Apply animation to this trigger',
+        order = 1,
+      },
+      AnimateSpeed = {
+        type = 'range',
+        name = 'Animate Speed',
+        order = 2,
+        desc = 'Changes the speed of the animation',
+        step = .01,
+        isPercent = true,
+        disabled = function()
+                     return not Trigger.Animate
+                   end,
+        min = o.TriggerAnimateSpeedMin,
+        max = o.TriggerAnimateSpeedMax,
+      },
+    },
+  }
+
+  --------------------
+  -- Text Line Options
+  --------------------
+  local TextLineOptions = {
+    type = 'select',
+    name = 'Text Line',
+    order = 2,
+    values = TextLineDropdown,
+    style = 'dropdown',
+  }
+
+  ---===============
+  -- Display Options
+  ---===============
+  local DisplayOptions = {
+    type = 'group',
+    name = '',
+    order = Order,
+    dialogInline = true,
+    get = function(Info)
+            local KeyName = Info[#Info]
+            local Value = Trigger[KeyName]
+
+            if KeyName == 'ObjectTypeID' then
+              local Group = Groups[Trigger.GroupNumber]
+              Value = Group.Objects[Value].Index
+              Name = gsub(Group.ObjectsDropdown[Value], 'BG:', 'Background:')
+
+              return Value
+            end
+
+            return Trigger[KeyName]
+          end,
+    set = function(Info, Value)
+            local KeyName = Info[#Info]
+            local Default
+
+            if KeyName == 'GroupNumber' then
+              Default = 'default'
+              BBar:UndoTriggers()
+
+            elseif KeyName == 'ObjectTypeID' then
+              local Group = Groups[Trigger.GroupNumber]
+              Name = gsub(Group.ObjectsDropdown[Value], 'BG:', 'Background:')
+              Value = Group.IndexObjectTypeID[Value]
+
+              Trigger[KeyName] = Value
+              -- Setting pars to nil will force checktriggers to set defaults
+              Trigger.Par1, Trigger.Par2, Trigger.Par3, Trigger.Par4 = nil, nil, nil, nil
+
+              -- Check triggers to set default pars
+              BBar:CheckTriggers()
+              UBF:Update()
+              BBar:Display()
+
+              return
+            end
+            Trigger[KeyName] = Value
+
+            -- Update bar to reflect trigger changes
+            BBar:CheckTriggers(Default)
+            UBF:Update()
+            BBar:Display()
+          end,
+    args = {
+      GroupNumber = {
+        type = 'select',
+        name = 'Name',
+        order = 1,
+        values = GroupsDropdown,
+      },
+      ObjectTypeID = {
+        type = 'select',
+        dialogControl = 'GUB_Dropdown_Select',
+        name = 'Type',
+        order = 2,
+        width = 'double',
+        values = function()
+                   return Groups[Trigger.GroupNumber].ObjectsDropdown
+                 end,
+      },
+      ObjectGroups = {
+        type = 'group',
+        name = '',
+        order = 5,
+        get = function(Info)
+                local KeyName = Info[#Info]
+
+                return Trigger[KeyName]
+              end,
+        set = function(Info, Value)
+                local KeyName = Info[#Info]
+
+                Trigger[KeyName] = Value
+
+                if KeyName == 'TextLine' then
+                  -- Undo changes on other textlines
+                  BBar:UndoTriggers()
+                end
+                -- Update bar to reflect trigger changes
+                -- Don't do check triggers here
+                UBF:Update()
+                BBar:Display()
+              end,
+        args = {
+          -- %%%%%%
+          -- Border
+          -- %%%%%%
+          Border = TriggerDisplayGroup(4, TypeBorder, {
+            Par1 = {
+              type = 'select',
+              name = 'Border',
+              order = 10,
+              dialogControl = 'LSM30_Border',
+              width = 'double',
+              values = LSMBorderDropdown,
+            },
+          }),
+          -- %%%%%
+          -- Color
+          -- %%%%%
+          Color = TriggerDisplayGroup(4, TypeColor, {
+            ColorGroup = ColorOptions,
+          }),
+          -- %%%%%%%%%%
+          -- Background
+          -- %%%%%%%%%%
+          Background = TriggerDisplayGroup(4, TypeBackground, {
+            Par1 = {
+              type = 'select',
+              name = 'Background',
+              width = 'double',
+              order = 10,
+              dialogControl = 'LSM30_Background',
+              values = LSMBackgroundDropdown,
+            },
+          }),
+          -- %%%%%%%%%%
+          -- Bartexture
+          -- %%%%%%%%%%
+          BarTexture = TriggerDisplayGroup(4, {OT.BarTexture}, {
+            Par1 = {
+              type = 'select',
+              name = 'Texture',
+              order = 10,
+              width = 'double',
+              dialogControl = 'LSM30_Statusbar',
+              values = LSMStatusBarDropdown,
+            },
+          }),
+          -- %%%%%%%%%%%%%
+          -- Texture Scale
+          -- %%%%%%%%%%%%%
+          TextureScale = TriggerDisplayGroup(4, {OT.TextureScale}, {
+            Animate = AnimateOptions,
+            Par1 = {
+              type = 'range',
+              name = 'Texture Scale',
+              order = 10,
+              desc = 'Change the texture size',
+              step = .01,
+              width = 'double',
+              isPercent = true,
+              min = o.TriggerTextureScaleMin,
+              max = o.TriggerTextureScaleMax,
+            },
+          }),
+          -- %%%%%%%%%%
+          -- Bar Offset
+          -- %%%%%%%%%%
+          BarOffset = TriggerDisplayGroup(4, {OT.BarOffset}, {
+            OffsetAll = {
+              type = 'toggle',
+              name = 'All',
+              order = 7,
+              get = function()
+                      return Trigger.OffsetAll
+                    end,
+              set = function(Info, Value)
+                      Trigger.OffsetAll = Value
+                    end,
+              desc = 'Change offset with one value'
+            },
+            Animate = AnimateOptions,
+            All = {
+              type = 'range',
+              name = 'Offset',
+              order = 8,
+              width = 'double',
+              get = function()
+                      return Trigger.Par1
+                    end,
+              set = function(Info, Value)
+                      Trigger.Par1 = Value
+                      Trigger.Par2 = -Value
+                      Trigger.Par3 = -Value
+                      Trigger.Par4 = Value
+
+                      -- Dont need to do a checktriggers here.
+                      UBF:Update()
+                      BBar:Display()
+                    end,
+              hidden = function()
+                         return not Trigger.OffsetAll
+                       end,
+              min = o.TriggerBarOffsetAllMin,
+              max = o.TriggerBarOffsetAllMax,
+              step = 1,
+            },
+            Spacer9 = CreateSpacer(9),
+            Par1 = { -- Left
+              type = 'range',
+              name = 'Left',
+              order = 10,
+              hidden = function()
+                         return Trigger.OffsetAll
+                       end,
+              min = o.TriggerBarOffsetLeftMin,
+              max = o.TriggerBarOffsetLeftMax,
+              step = 1,
+            },
+            Par2 = { -- Right
+              type = 'range',
+              name = 'Right',
+              order = 11,
+              hidden = function()
+                         return Trigger.OffsetAll
+                       end,
+              min = o.TriggerBarOffsetRightMin,
+              max = o.TriggerBarOffsetRightMax,
+              step = 1,
+            },
+            Spacer12 = CreateSpacer(12),
+            Par3 = { -- Top
+              type = 'range',
+              name = 'Top',
+              order = 13,
+              hidden = function()
+                         return Trigger.OffsetAll
+                       end,
+              min = o.TriggerBarOffsetTopMin,
+              max = o.TriggerBarOffsetTopMax,
+              step = 1,
+            },
+            Par4 = { -- Bottom
+              type = 'range',
+              name = 'Bottom',
+              order = 14,
+              hidden = function()
+                         return Trigger.OffsetAll
+                       end,
+              min = o.TriggerBarOffsetBottomMin,
+              max = o.TriggerBarOffsetBottomMax,
+              step = 1,
+            },
+          }),
+          -- %%%%%%%%%%%%%%%
+          -- Text font color
+          -- %%%%%%%%%%%%%%%
+          TextFontColor = TriggerDisplayGroup(4, {OT.TextFontColor}, {
+            TextLine = TextLineOptions,
+            Spacer3 = CreateSpacer(3),
+            ColorGroup = ColorOptions,
+          }),
+          -- %%%%%%%%%%%%%%%%
+          -- Text font offset
+          -- %%%%%%%%%%%%%%%%
+          TextFontOffset = TriggerDisplayGroup(4, {OT.TextFontOffset}, {
+            Animate = AnimateOptions,
+            TextLine = TextLineOptions,
+            Spacer3 = CreateSpacer(3),
+            ColorGroup = ColorOptions,
+            Par1 = { -- x
+              type = 'range',
+              name = 'Horizonal',
+              order = 10,
+              min = o.FontOffsetXMin,
+              max = o.FontOffsetXMax,
+              step = 1,
+            },
+            Par2 = { -- y
+              type = 'range',
+              name = 'Vertical',
+              order = 11,
+              min = o.FontOffsetYMin,
+              max = o.FontOffsetYMax,
+              step = 1,
+            },
+          }),
+          -- %%%%%%%%%%%%%%
+          -- Text font size
+          -- %%%%%%%%%%%%%%
+          TextFontSize = TriggerDisplayGroup(4, {OT.TextFontSize}, {
+            Animate = AnimateOptions,
+            TextLine = TextLineOptions,
+            Spacer3 = CreateSpacer(3),
+            Par1 = {
+              type = 'range',
+              name = 'Size',
+              order = 10,
+              min = o.TriggerFontSizeMin,
+              max = o.TriggerFontSizeMax,
+              step = 1,
+              width = 'double',
+            },
+          }),
+          -- %%%%%%%%%%%%%%
+          -- Text font type
+          -- %%%%%%%%%%%%%%
+          TextFontType = TriggerDisplayGroup(4, {OT.TextFontType}, {
+            TextLine = TextLineOptions,
+            Spacer3 = CreateSpacer(3),
+            Par1 = {
+              type = 'select',
+              name = 'Type',
+              order = 10,
+              dialogControl = 'LSM30_Font',
+              values = LSMFontDropdown,
+            },
+          }),
+          -- %%%%%%%%%%%%%%%
+          -- Text font style
+          -- %%%%%%%%%%%%%%%
+          TextFontStyle = TriggerDisplayGroup(4, {OT.TextFontStyle}, {
+            TextLine = TextLineOptions,
+            Spacer3 = CreateSpacer(3),
+            Par1 = {
+              type = 'select',
+              name = 'Style',
+              order = 10,
+              style = 'dropdown',
+              values = FontStyleDropdown,
+            },
+          }),
+          -- %%%%%
+          -- Sound
+          -- %%%%%
+          Sound = TriggerDisplayGroup(4, {OT.Sound}, {
+            Par1 = {
+              type = 'select',
+              name = 'Sound',
+              order = 10,
+              width = 'double',
+              dialogControl = 'LSM30_Sound',
+              values = LSMSoundDropdown,
+            },
+            Par2 = {
+              type = 'select',
+              name = 'Sound Channel',
+              order = 11,
+              style = 'dropdown',
+              values = TriggerSoundChannelDropdown,
+            },
+          }),
+        },
+      },
+    },
+  }
+
+  return DisplayOptions
 end
 
-local function AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, Triggers, Trigger)
-  local TriggerType = type(Trigger)
-  local GroupNumber = TriggerType == 'number' and Trigger or Trigger.GroupNumber
-  local Group = Groups[GroupNumber]
-  local TGA = TOA[ GroupNames[GroupNumber] ].args
-  local AuraGroupOrder = 200
-  local ConditionOrder = 100
-  local InvalidSpell = false
+-------------------------------------------------------------------------------
+-- AddTriggerAuraOption
+--
+-- Subfunction of CreateTriggerAuraOptions()
+--
+-- Adds aura options for the trigger
+--
+-- UBF                     Unitbar Frame
+-- BBar                    Table that contains the bar thats using this aura
+-- AOA                     Aura Options Args
+-- Auras                   Contains all the auras
+-- Aura                    Current aura that these options will use
+-------------------------------------------------------------------------------
+local function AddTriggerAuraOption(UBF, BBar, AOA, Auras, Aura)
+  local AuraGroup = 'AuraGroup' .. ToHex(Aura)
 
-  --====================================
-  -- SUB FUNCTION Utility
-  --====================================
-  local function ToggleMenuButton(MenuButton)
-    local Action = nil
-
-    if Triggers.MenuSync then
-      Action = Triggers.ActionSync
-    else
-      Action = Trigger.Action
-    end
-    local State = Action[MenuButton] or 0
-
-    -- Empty table so only one menu can be active at time.
-    wipe(Action)
-    Action[MenuButton] = State * -1 + 1
-  end
-
-  local function GetMenuButton(MenuButton)
-    if Triggers.MenuSync then
-      return Triggers.ActionSync[MenuButton] or ''
-    else
-      return Trigger.Action[MenuButton] or ''
-    end
-  end
-
-  local function TriggerAction(Action)
-    if Triggers.MenuSync then
-      Action = Triggers.ActionSync[Action]
-    else
-      Action = Trigger.Action[Action]
-    end
-
-    if Action == nil or Action == 0 then
-      return 0
-    else
-      return 1
-    end
-  end
-
-  --====================================
-  -- SUB FUNCTION SetDefaultPars()
-  --====================================
-  local function SetDefaultPars(Trigger)
-
-    -- Validate pars
-    local TypeID = Trigger.TypeID
-    local Pars = Trigger.Pars
-    local p1, p2, p3, p4 = Pars[1], Pars[2], Pars[3], Pars[4]
-
-    if TypeID == 'border' then
-      p2, p3, p4 = nil, nil, nil
-      if LSMBorderDropdown[p1] == nil then
-        p1 = GD.DefaultBorderTexture
-      end
-
-    elseif TypeID == 'background' then
-      p2, p3, p4 = nil, nil, nil
-      if LSMBackgroundDropdown[p1] == nil then
-        p1 = GD.DefaultBgTexture
-      end
-
-    elseif TypeID == 'bartexture' then
-      p2, p3, p4 = nil, nil, nil
-      if LSMStatusBarDropdown[p1] == nil then
-        p1 = GD.DefaultStatusBarTexture
-      end
-
-    elseif TypeID == 'texturescale' then
-      p2, p3, p4 = nil, nil, nil
-      p1 = tonumber(p1) or 1
-
-      -- check for out of bounds
-      if p1 < o.TriggerTextureScaleMin then
-        p1 = o.TriggerTextureScaleMin
-      elseif p1 > o.TriggerTextureScaleMax then
-        p1 = o.TriggerTextureScaleMax
-      end
-
-    elseif TypeID == 'baroffset' then
-      p1, p2, p3, p4 = tonumber(p1) or 0, tonumber(p2) or 0, tonumber(p3) or 0, tonumber(p4) or 0
-
-    elseif strfind(TypeID, 'color') then
-      p1, p2, p3, p4 = tonumber(p1) or 1, tonumber(p2) or 1, tonumber(p3) or 1, tonumber(p4) or 1
-      if p1 < 0 or p1 > 1 then p1 = 1 end
-      if p2 < 0 or p2 > 1 then p2 = 1 end
-      if p3 < 0 or p3 > 1 then p3 = 1 end
-      if p4 < 0 or p4 > 1 then p4 = 1 end
-
-    elseif strfind(TypeID, 'fontoffset') then
-      p3, p4 = nil, nil
-      p1, p2 = tonumber(p1) or 0, tonumber(p2) or 0
-
-      -- check for out of bounds
-      if p1 < o.FontOffsetXMin or p1 > o.FontOffsetXMax then
-        p1 = 0
-      end
-      if p2 < o.FontOffsetYMin or p2 > o.FontOffsetYMax then
-        p2 = 0
-      end
-    elseif TypeID == 'fontsize' then
-      p2, p3, p4 = nil, nil, nil
-
-      p1 = tonumber(p1) or 0
-
-      -- check for out of bounds
-      if p1 < o.TriggerFontSizeMin or p1 > o.TriggerFontSizeMax then
-        p1 = 0
-      end
-    elseif TypeID == 'fonttype' then
-      p2, p3, p4 = nil, nil, nil
-      p1 = LSMFontDropdown[p1] or GD.DefaultFontType
-    elseif TypeID == 'fontstyle' then
-      p2, p3, p4 = nil, nil, nil
-      p1 = FontStyleDropdown[p1] or 'NONE'
-
-    elseif TypeID == 'sound' then
-      p3, p4 = nil, nil, nil
-      if LSMSoundDropdown[p1] == nil then
-        p1 = GD.DefaultSound
-      end
-      if TriggerSoundChannelDropdown[p2] == nil then
-        p2 = GD.DefaultSoundChannel
-      end
-    end
-    Pars[1], Pars[2], Pars[3], Pars[4] = p1, p2, p3, p4
-
-    -- Validate getpars
-    local GetFnTypeID = Trigger.GetFnTypeID
-    local GetPars = Trigger.GetPars
-    p1, p2, p3, p4 = GetPars[1], GetPars[2], GetPars[3], GetPars[4]
-
-    if GetFnTypeID == 'classcolor' or GetFnTypeID == 'powercolor' or
-       GetFnTypeID == 'combatcolor' or GetFnTypeID == 'taggedcolor' then
-      p2, p3, p4 = nil, nil, nil
-    end
-
-    GetPars[1], GetPars[2], GetPars[3], GetPars[4] = p1, p2, p3, p4
-  end
-
-  --====================================
-  -- SUB FUNCTION CreateClearPasteButton
-  --====================================
-  local function CreateClearButton(Order, ButtonType)
-    -- top     Top of all triggers or empty group
-    -- bottom  Next trigger
-
-    local Clear = {
-      type = 'execute',
-      order = function()
-                if ButtonType == 'top' then
-                  return Order
-                else
-                  return Trigger.OrderNumber + Order
-                end
-              end,
-      name = 'Clear',
-      width = 'half',
-      desc = function()
-               if ClipBoard.Move then
-                 return 'Clears the current move'
-               elseif ClipBoard.Copy then
-                 return 'Clears the current copy'
-               end
-             end,
-      func = function()
-               HideTooltip(true)
-
-               ClipBoard.Move = nil
-               ClipBoard.Copy = nil
-             end,
-      hidden = function()
-                 return ClipBoard.Move == nil and ClipBoard.Copy == nil
-               end
-    }
-    return Clear
-  end
-
-  local function CreatePasteButton(Order, ButtonType)
-    local Paste = {
-      type = 'execute',
-      order = function()
-                if ButtonType == 'top' then
-                  return Order
-                else
-                  return Trigger.OrderNumber + Order
-                end
-              end,
-      name = 'Paste',
-      width = 'half',
-      desc = 'Click to paste trigger here',
-      disabled = function()
-                   local CB = ClipBoard.Move or ClipBoard.Copy
-
-                   if CB then
-                     return not BBar:CompTriggers(CB.Source, GroupNumber)
-                   end
-                 end,
-      hidden = function()
-                 return ClipBoard.Move == nil and ClipBoard.Copy == nil
+  AOA[AuraGroup] = {
+    type = 'group',
+    name = '',
+    dialogInline = true,
+    order = function()
+              return Aura.OrderNumber
+            end,
+    disabled = function()
+                 return Auras.Disabled
                end,
-      func = function()
-               local CB = ClipBoard.Move or ClipBoard.Copy
+    get = function(Info)
+            local KeyName = Info[#Info]
+            local Value = Aura[KeyName]
 
-               local Source = CB.Source
-               local T = nil
-               local Index = nil
+            if KeyName == 'SpellID' then
+              Value = '' -- return blank on perpose
+            elseif KeyName == 'Units' then
+              Value = tconcat(Value, ' ')
+            elseif KeyName == 'StackOperator' then
+              Value = FindMenuItem(AuraStackOperatorDropdown, Aura.StackOperator)
+            elseif KeyName == 'Stacks' then
+              Value = tostring(Value)
+            elseif KeyName == 'Own' then
+              Value = Aura.Own ~= 0
+            elseif KeyName == 'Type' then
+              Value = Aura.Type ~= 0
+            end
 
-               if ButtonType == 'top' then
-                 Index = 1
-               elseif ButtonType == 'bottom' then
-                 Index = Trigger.Index + 1
-               end
-               if ClipBoard.Move then
-                 T = BBar:MoveTriggers(Source, GroupNumber, Index)
-               else
-                 T = BBar:CopyTriggers(Source, GroupNumber, Index)
-                 T.Name = '[Copy] ' .. T.Name
+            return Value
+          end,
+    set = function(Info, Value, SpellID)
+            local KeyName = Info[#Info]
 
-                 -- Set select so there is not two selected triggers at the same time.
-                 T.Select = false
-               end
+            if KeyName == 'SpellID' then
+              -- Escape was pressed. Cancel input
+              if Value == -1 then
+                return
+              end
+              Value = tonumber(Value) or SpellID
+            elseif KeyName == 'Units' then
+              Value = { Main:StringSplit(' ', Value) }
+            elseif KeyName == 'StackOperator' then
+              Value = AuraStackOperatorDropdown[Value]
+            elseif KeyName == 'Own' then
+              Value = Aura.Own + 1
+              if Value > 2 then
+                Value = 0
+              end
+            elseif KeyName == 'Type' then
+              Value = Aura.Type + 1
+              if Value > 2 then
+                Value = 0
+              end
+            end
+            Aura[KeyName] = Value
 
-               -- Paste trigger options
-               AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, Triggers, T)
+            -- Update bar to reflect trigger changes
+            BBar:CheckTriggers()
+            UBF:Update()
+            BBar:Display()
+          end,
+    args = {
+      Header = {
+        type = 'header',
+        name = '',
+        order = 1,
+      },
+      SpellName = {
+        type = 'input',
+        width = 'full',
+        order = 2,
+        dialogControl = 'GUB_Spell_Info',
+        get = function() end,
+        set = function() end,
+        name = function()
+                 local SpellID = Aura.SpellID
+                 if SpellID > 0 then
+                   local Name, _, Icon = GetSpellInfo(SpellID)
 
-               if ClipBoard.Move then
-
-                 -- Delete old option
-                 DeleteTriggerOption(CB.SourceTGA, Source)
-
-                 -- Clear the clipboard
-                 ClipBoard.Move = nil
-               else
-                 ClipBoard.Copy = nil
-               end
-
-               -- update the bar
-               UBF:Update()
-               BBar:Display()
-
-               HideTooltip(true)
-             end,
-    }
-    return Paste
-  end
-
-  --====================================
-  -- SUB FUNCTION CreateSwapButton
-  --====================================
-  local function CreateSwapButton(Order, ButtonType)
-    -- select   swap button for the selected trigger
-    -- other    for other triggers not selected.
-
-    local Swap = {
-      type = 'execute',
-      order = Order,
-      name = 'Swap',
-      width = 'half',
-      hidden = function()
-                 if ButtonType == 'select' and Trigger.Select then
-                   return ClipBoard.Move ~= nil or ClipBoard.Copy ~= nil
-                 elseif ButtonType == 'other' and not Trigger.Select then
-                   return ClipBoard.Swap == nil
+                   if Name == nil then
+                     return format('%s:20:16:%s', 0, "Aura doesn't exist.  enter Spell ID or Spell Name")
+                   else
+                     return format('%s:20:16:(|cFF00FF00%s|r)', SpellID, SpellID)
+                   end
                  else
-                   return true
+                   return '16::|cFF00FF00MATCH ANY AURA|r or enter Spell ID or Spell Name'
                  end
                end,
-      disabled = function()
-                   local Swap = ClipBoard.Swap
-
-                   HideTooltip(true)
-
-                   if #Triggers == 1 then
-                     return true
-                   elseif Swap then
-                     if Swap.Source == Trigger then
-                       return true
-                     else
-                       local Source = Swap.Source
-
-                       return not BBar:CompTriggers(Source, GroupNumber) or not BBar:CompTriggers(Trigger, Source.GroupNumber)
-                     end
-                   end
+      },
+      MinimizeGroup = {
+        type = 'group',
+        name = '',
+        dialogInline = true,
+        order = 9,
+        hidden = function()
+                   return Aura.Minimized
                  end,
-      desc = 'Click "Swap" on the two triggers you want to swap.',
-      func = function()
-               local Swap = ClipBoard.Swap
+        args = {
+          SpellID = {
+            type = 'input',
+            name = 'Aura: Escape to cancel entry',
+            desc = 'Enter nothing to look for any aura',
+            order = 10,
+            dialogControl = 'GUB_Aura_EditBox',
+          },
+          Own = {
+            type = 'toggle',
+            name = function()
+                     local Own = Aura.Own
 
-               if Swap == nil then
-                 Swap = {}
-                 Swap.Source = Trigger
-                 Swap.SourceTGA = TGA
-                 ClipBoard.Swap = Swap
-               else
-                 local Source = Swap.Source
+                     return Own <= 1 and 'Own' or 'Not Own'
+                   end,
+            desc = function()
+                     local Own = Aura.Own
+                     local St
 
-                 if BBar:SwapTriggers(Source, Trigger) then
+                     if Own == 0 then
+                       St = 'If checked, then this aura must be cast by you'
+                     elseif Own == 1 then
+                       St = 'This aura must be cast by you'
+                     else
+                       St = 'This aura can only be cast from someone else'
+                     end
 
-                   -- Swap the option tables
-                   AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, Triggers, Source)
-                   AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, Triggers, Trigger)
+                     return '|C0000ff00Multi-state Toggle|r (Own, Not Own) \n' .. St
+                   end,
+            order = 11,
+            width = 'half',
+          },
+          Type = {
+            type = 'toggle',
+            name = function()
+                     local Type = Aura.Type
 
-                   -- Delete the old options.
-                   DeleteTriggerOption(TGA, Trigger)
-                   DeleteTriggerOption(Swap.SourceTGA, Source)
+                     return Type <= 1 and 'Buff' or 'Debuff'
+                   end,
+            desc = function()
+                     local Type = Aura.Type
+                     local St = ''
+
+                     if Type == 0 then
+                       St = 'If checked, then this aura can only be a buff'
+                     elseif Type == 1 then
+                       St = 'This aura can only be a buff'
+                     elseif Type == 2 then
+                       St = 'This aura can only be a debuff'
+                     end
+
+                     return '|C0000ff00Multi-state Toggle|r (Buff, Debuff) \n' .. St
+                   end,
+            order = 12,
+            width = 'half',
+          },
+          Inverse = {
+            type = 'toggle',
+            name = 'Inverse',
+            desc = 'If checked, then the aura matching is reversed',
+            order = 13,
+            width = 'half',
+          },
+          Spacer20 = CreateSpacer(20),
+          Units = {
+            type = 'input',
+            name = 'Units  ( separated by space )',
+            order = 21,
+          },
+          StackOperator = {
+            type = 'select',
+            name = 'Operator',
+            width = 'half',
+            order = 22,
+            values = AuraStackOperatorDropdown,
+          },
+          Stacks = {
+            type = 'input',
+            name = 'Stacks',
+            width = 'half',
+            order = 23,
+          },
+          Spacer30 = CreateSpacer(30),
+          CheckDebuffTypes = {
+            type = 'toggle',
+            name = 'Check Debuff Types',
+            order = 31,
+            hidden = function()
+                       return Aura.Type == 1
+                     end,
+          },
+          CheckDebuffTypesSelect = {
+            type = 'multiselect',
+            name = 'Debuff Types',
+            order = 32,
+            --dialogControl = 'Dropdown',
+            values = DebuffTypesDropdown,
+            width = 'half',
+            hidden = function()
+                       return not Aura.CheckDebuffTypes or Aura.Type == 1
+                     end,
+            get = function(Info, Index)
+                    return Aura[ DebuffTypesDropdown[Index] ]
+                  end,
+            set = function(Info, Value, Active)
+                    Aura[ DebuffTypesDropdown[Value] ] = Active
+
+                    -- Update bar to reflect trigger changes
+                    BBar:CheckTriggers()
+                    UBF:Update()
+                    BBar:Display()
+                  end,
+          },
+        },
+      },
+      Minimize = {
+        type = 'execute',
+        width = 'half',
+        order = 10,
+        name = function()
+                 if Aura.Minimized then
+                   return 'Expand'
+                 else
+                   return 'Collapse'
                  end
+               end,
+        func = function()
+                 Aura.Minimized = not Aura.Minimized
+               end,
+      },
+      Add = {
+        type = 'execute',
+        name = function()
+                 if Aura.OrderNumber < #Auras then
+                   return 'Insert'
+                 else
+                   return 'Add'
+                 end
+               end,
+        order = 11,
+        width = 'half',
+        func = function()
+                 local Index = Aura.OrderNumber
+                 local Aura = {}
 
-                 -- Clear the clipboard
-                 ClipBoard.Swap = nil
+                 Main:CopyTableValues(DefaultUB.TriggerAurasArray, Aura, true)
+                 tinsert(Auras, Index + 1, Aura)
 
-                 -- update the bar
+                 BBar:CheckTriggers()
+                 AddTriggerAuraOption(UBF, BBar, AOA, Auras, Aura)
+
+                 -- Update bar to reflect trigger changes
+                 UBF:Update()
+                 BBar:Display()
+               end,
+      },
+      Up = {
+        type = 'execute',
+        name = 'Up',
+        order = 12,
+        width = 'half',
+        hidden = function()
+                   return Aura.OrderNumber == 1
+                 end,
+        func = function()
+                 local Index = Aura.OrderNumber
+
+                 Auras[Index], Auras[Index - 1] = Auras[Index - 1], Auras[Index]
+
+                 -- Update bar to reflect trigger changes
+                 BBar:CheckTriggers()
+                 UBF:Update()
+                 BBar:Display()
+               end
+      },
+      Down = {
+        type = 'execute',
+        name = 'Down',
+        order = 13,
+        width = 'half',
+        hidden = function()
+                   return Aura.OrderNumber == #Auras
+                 end,
+        func = function()
+                 local Index = Aura.OrderNumber
+
+                 Auras[Index], Auras[Index + 1] = Auras[Index + 1], Auras[Index]
+
+                 -- Update bar to reflect trigger changes
+                 BBar:CheckTriggers()
+                 UBF:Update()
+                 BBar:Display()
+               end
+      },
+      Spacer14 = CreateSpacer(14, 'half'),
+      Spacer15 = CreateSpacer(15, 'half', function()
+                                            local Index = Aura.OrderNumber
+                                            return Index > 1 and Index < #Auras
+                                          end),
+      Delete = {
+        type = 'execute',
+        name = 'Delete',
+        order = 16,
+        width = 'half',
+        confirm = function()
+                    if not IsModifierKeyDown() then
+                      return 'Are you sure you want to delete this aura?\n Hold a modifier key down and click delete to bypass this warning'
+                    end
+                  end,
+        func = function()
+                 tremove(Auras, Aura.OrderNumber)
+
+                 -- Delete this option
+                 AOA[AuraGroup] = nil
+
+                 -- Update bar to reflect trigger changes
+                 BBar:CheckTriggers()
                  UBF:Update()
                  BBar:Display()
 
                  HideTooltip(true)
                end
-             end,
-    }
-    return Swap
-  end
-
-  --====================================
-  -- SUB FUNCTION CreateClearSwapButton
-  --====================================
-  local function CreateClearSwapButton(Order, ButtonType)
-    -- select   swap button for the selected trigger
-    -- other    for other triggers not selected.
-
-    local ClearSwap = {
-      type = 'execute',
-      order = Order,
-      name = 'Clear',
-      width = 'half',
-      desc = 'Clears the current swap',
-      hidden = function()
-                 if ButtonType == 'select' and Trigger.Select then
-                   return ClipBoard.Swap == nil
-                 elseif ButtonType == 'other' and not Trigger.Select then
-                   return ClipBoard.Swap == nil
-                 else
-                   return true
-                 end
-               end,
-      func = function()
-               HideTooltip(true)
-               ClipBoard.Swap = nil
-             end,
-    }
-    return ClearSwap
-  end
-
-  -- Adding 'add' button and util buttons for empty groups
-  -- Then return
-  if TriggerType == 'number' then
-    TGA.Add = {
-      type = 'execute',
-      order = 0.1,
-      name = 'Add',
-      width = 'half',
-      desc = 'Click to add the first trigger',
-      func = function()
-               local T = BBar:CreateDefaultTriggers(GroupNumber)
-
-               -- Make sure pars is correct.
-               SetDefaultPars(T)
-
-               BBar:InsertTriggers(T)
-               AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, Triggers, T)
-
-               -- Update bar to reflect trigger changes
-               UBF:Update()
-               BBar:Display()
-
-               HideTooltip(true)
-             end,
-      hidden = function()
-                 return Group.TriggersInGroup > 0 or ClipBoard.Move or ClipBoard.Copy
-               end,
-    }
-    TGA.ClearButton = CreateClearButton(0.2, 'top')
-    TGA.PasteButton = CreatePasteButton(0.3, 'top')
-    return
-  end
-
-  -- Create 'clear' and 'paste' buttons at the bottom of the trigger.
-  local TriggerHex = ToHex(Trigger)
-  TGA['Clear' .. TriggerHex] = CreateClearButton(0.1, 'bottom')
-  TGA['Paste' .. TriggerHex] = CreatePasteButton(0.2, 'bottom')
-
-  --===================================
-  -- Main Trigger UI starts here
-  --===================================
-
-  -- create trigger header
-  local TO = {
-    type = 'group',
-    guiInline = true,
-    name = ' ',
-    order = function()
-              return Trigger.OrderNumber
-            end,
-  }
-
-  TGA['Trigger' .. ToHex(Trigger)] = TO
-
-  TO.args = {
-
-    --================================
-    -- Clear, Paste, and move buttons
-    --================================
-    ClearSwapButton = CreateClearSwapButton(32, 'other'),
-    SwapButton = CreateSwapButton(33, 'other'),
-
-    --================================
-    -- Name button
-    --================================
-    Select = {
-      type = 'input',
-      order = 5,
-      name = function()
-               local Texture = ConvertTypeIDColorIcon[Trigger.TypeID]
-               local rgb = '0.7, 0.7, 0.7'
-
-               if not Trigger.Enabled then
-                 rgb = '0.75, 0, 0'
-               elseif Trigger.StanceEnabled and Trigger.DisabledByStance then
-                 rgb = '0.75, 0.75, 0'
-               elseif Trigger.Static then
-                 rgb = '0, 0.75, 0'
-               end
-
-               if Texture then
-                 return format('%s:%s  |T%s:16|t  |cFFFFFF00%s|r', rgb, Trigger.OrderNumber, Texture, Trigger.Name)
-               else
-                 return format('%s:%s %s', rgb, Trigger.OrderNumber, Trigger.Name)
-               end
-             end,
-      width = 'full',
-      dialogControl = 'GUB_Text_Button',
-      desc = 'click test',
-      set = function()
-              BBar:SetSelectTrigger(Trigger.GroupNumber, Trigger.Index)
-            end
-    },
-    Spacer55 = CreateSpacer(5.5),
-
-    --================================
-    -- Action
-    --================================
-    Static = {
-      type = 'toggle',
-      order = 6,
-      width = 'half',
-      name = 'Static',
-      desc = 'Click to make the trigger always on',
-      get = function()
-              return Trigger.Static
-            end,
-      set = function(Info, Value)
-              Trigger.Static = Value
-
-              -- update the bar
-              BBar:CheckTriggers()
-              UBF:Update()
-              BBar:Display()
-            end,
-      hidden = function()
-                 return not Trigger.Select
-               end,
-      disabled = function()
-                   return not Trigger.Enabled
-                 end,
-    },
-    Disabled = {
-      type = 'toggle',
-      order = 7,
-      width = 'half',
-      name = 'Disable',
-      desc = 'If checked, this trigger will no longer function',
-      get = function()
-              return not Trigger.Enabled
-            end,
-      set = function(Info, Value)
-               Trigger.Enabled = not Value
-
-               -- update the bar
-               BBar:CheckTriggers()
-               UBF:Update()
-               BBar:Display()
-             end,
-      hidden = function()
-                 return not Trigger.Select
-               end,
-    },
-    StanceEnabled = {
-      type = 'toggle',
-      order = 8,
-      name = 'Stance',
-      desc = 'If checked, this trigger will only function on class and stance',
-      hidden = function()
-                 return not Trigger.Select
-               end,
-      disabled = function()
-                   HideTooltip(true)
-                   return not Trigger.Enabled
-                 end,
-    },
-    StanceOptions = CreateStanceOptions(BBar.BarType, 9, Trigger.ClassStances, BBar),
-    Spacer10 = CreateSpacer(10, 'full', function() return not Trigger.Select end),
-    ActionType = {
-      type = 'input',
-      order = 11,
-      name = function()
-               return format('Type:%s', GetMenuButton('Type'))
-             end,
-      width = 'half',
-      dialogControl = 'GUB_Menu_Button',
-      set = function()
-              ToggleMenuButton('Type')
-
-              HideTooltip(true)
-            end,
-      get = function() end,
-      hidden = function()
-                 return not Trigger.Select
-               end,
-    },
-    ActionValue = {
-      type = 'input',
-      order = 12,
-      name = function()
-               return format('Value:%s', GetMenuButton('Value'))
-             end,
-      width = 'half',
-      dialogControl = 'GUB_Menu_Button',
-      set = function()
-              ToggleMenuButton('Value')
-
-              HideTooltip(true)
-            end,
-      get = function() end,
-      hidden = function()
-                 return not Trigger.Select
-               end,
-      disabled = function()
-                   return Trigger.Static
-                 end
-    },
-    ActionName = {
-      type = 'input',
-      order = 13,
-      name = function()
-               return format('Name:%s', GetMenuButton('Name'))
-             end,
-      width = 'half',
-      dialogControl = 'GUB_Menu_Button',
-      set = function()
-              ToggleMenuButton('Name')
-
-              HideTooltip(true)
-            end,
-      get = function() end,
-      hidden = function()
-                 return not Trigger.Select
-               end,
-    },
-    ActionSpacer14 = CreateSpacer(14, 'half', function() return not Trigger.Select end),
-    ActionUtil = {
-      type = 'input',
-      order = 15,
-      name = function()
-               return format('Util:%s', GetMenuButton('Util'))
-             end,
-      width = 'half',
-      dialogControl = 'GUB_Menu_Button',
-      set = function()
-              ToggleMenuButton('Util')
-
-              HideTooltip(true)
-            end,
-      get = function() end,
-      hidden = function()
-                 return not Trigger.Select
-               end,
-    },
-    Name = {
-      type = 'input',
-      name = 'Name',
-      order = 21,
-      width = 'full',
-      get = function()
-              return Trigger.Name or ''
-            end,
-      set = function(Info, Value)
-              Trigger.Name = Value
-            end,
-      hidden = function()
-                 return not Trigger.Select or TriggerAction('Name') == 0
-               end,
-    },
-    SepLineBottom = {
-      type = 'header',
-      name = '',
-      order = 20,
-      hidden = function()
-                 return not Trigger.Select
-               end,
-    },
-
-    --=============================
-    -- Type
-    --=============================
-    Type = {
-      type = 'group',
-      order = 21,
-      name = '',
-      hidden = function()
-                 return TriggerAction('Type') == 0 or not Trigger.Select
-               end,
-      disabled = function()
-                   return not Trigger.Enabled
-                 end,
-      args = {
-        ValueType = {
-          type = 'select',
-          name = 'Value Type',
-          order = 1,
-          values = function()
-                     return Group.ValueTypes
-                   end,
-          style = 'dropdown',
-          disabled = function()
-                       return Trigger.Static or not Trigger.Enabled
-                     end,
-        },
-        Type = {
-          type = 'select',
-          name = 'Type',
-          width = 'normal',
-          order = 2,
-          desc = 'Type of trigger',
-          values = function()
-                     return Group.Types
-                   end,
-          style = 'dropdown',
-        },
-        Spacer3 = CreateSpacer(3, nil, function()
-                                         return Trigger.CanAnimate
-                                       end),
-        Animate = {
-          type = 'toggle',
-          name = 'Animate',
-          desc = 'Apply animation to this trigger',
-          order = 4,
-          hidden = function()
-                     return not Trigger.CanAnimate
-                   end,
-        },
-        AnimateSpeed = {
-          type = 'range',
-          name = 'Animate Speed',
-          order = 5,
-          desc = 'Changes the speed of the animation',
-          step = .01,
-          isPercent = true,
-          disabled = function()
-                       return not Trigger.Animate
-                     end,
-          hidden = function()
-                     return not Trigger.CanAnimate
-                   end,
-          min = o.TriggerAnimateSpeedMin,
-          max = o.TriggerAnimateSpeedMax,
-        },
-        Spacer6 = CreateSpacer(6, nil, function()
-                                         local TypeID = Trigger.TypeID
-
-                                         return TypeID ~= 'fontcolor' and TypeID ~= 'fontoffset' and
-                                                TypeID ~= 'fontsize' and TypeID ~= 'fonttype'
-                                       end),
-        TextLine = {
-          type = 'select',
-          name = 'Text Line',
-          order = 7,
-          values = TextLineDropdown,
-          style = 'dropdown',
-          hidden = function()
-                     local TypeID = Trigger.TypeID
-
-                     return TypeID ~= 'fontcolor' and TypeID ~='fontoffset' and
-                            TypeID ~= 'fontsize' and TypeID ~= 'fonttype' and TypeID ~= 'fontstyle'
-                   end,
-        },
-        Spacer10 = CreateSpacer(10),
-        ParsColor = {
-          type = 'color',
-          name = 'Color',
-          order = 11,
-          width = 'half',
-          hasAlpha = true,
-          hidden = function()
-                     local TypeID = Trigger.TypeID
-
-                     return TypeID ~= 'bordercolor' and TypeID ~= 'backgroundcolor' and TypeID ~= 'bartexturecolor' and
-                            TypeID ~= 'fontcolor'
-                   end,
-        },
-        ParsTexture = {
-          type = 'select',
-          name = 'Texture',
-          order = 12,
-          dialogControl = 'LSM30_Statusbar',
-          values = LSMStatusBarDropdown,
-          hidden = function()
-                     return Trigger.TypeID ~= 'bartexture'
-                   end,
-        },
-        ParsTextureScale = {
-          type = 'range',
-          name = 'Texture Scale',
-          order = 13,
-          desc = 'Change the texture size',
-          step = .01,
-          width = 'double',
-          isPercent = true,
-          hidden = function()
-                     return Trigger.TypeID ~= 'texturescale'
-                   end,
-          min = o.TriggerTextureScaleMin,
-          max = o.TriggerTextureScaleMax,
-        },
-
-        ParsBarOffsets = CreateOffsetOption(13.5, UBF, BBar, Trigger),
-        ParsBorder = {
-          type = 'select',
-          name = 'Border',
-          desc = function()
-                   return Trigger.Pars[1] or ''
-                 end,
-          order = 15,
-          dialogControl = 'LSM30_Border',
-          values = LSMBorderDropdown,
-          hidden = function()
-                     return Trigger.TypeID ~= 'border'
-                   end,
-        },
-        ParsBackground = {
-          type = 'select',
-          name = 'Background',
-          width = 'double',
-          desc = function()
-                   return Trigger.Pars[1] or ''
-                 end,
-          order = 16,
-          dialogControl = 'LSM30_Background',
-          values = LSMBackgroundDropdown,
-          hidden = function()
-                     return Trigger.TypeID ~= 'background'
-                   end,
-        },
-        ParsSound = {
-          type = 'select',
-          name = 'Sound',
-          desc = function()
-                   return Trigger.Pars[1] or ''
-                 end,
-          order = 17,
-          width = 'double',
-          dialogControl = 'LSM30_Sound',
-          values = LSMSoundDropdown,
-          hidden = function()
-                     return Trigger.TypeID ~= 'sound'
-                   end,
-        },
-        ParsTextOffsetX = {
-          type = 'range',
-          name = 'Horizonal',
-          order = 18,
-          min = o.FontOffsetXMin,
-          max = o.FontOffsetXMax,
-          step = 1,
-          hidden = function()
-                     return Trigger.TypeID ~= 'fontoffset'
-                   end,
-        },
-        ParsTextOffsetY = {
-          type = 'range',
-          name = 'Vertical',
-          order = 19,
-          min = o.FontOffsetYMin,
-          max = o.FontOffsetYMax,
-          step = 1,
-          hidden = function()
-                     return Trigger.TypeID ~= 'fontoffset'
-                   end,
-        },
-        ParsTextSize = {
-          type = 'range',
-          name = 'Size',
-          order = 20,
-          min = o.TriggerFontSizeMin,
-          max = o.TriggerFontSizeMax,
-          step = 1,
-          width = 'double',
-          hidden = function()
-                     return Trigger.TypeID ~= 'fontsize'
-                   end,
-        },
-        ParsTextType = {
-          type = 'select',
-          name = 'Type',
-          order = 21,
-          dialogControl = 'LSM30_Font',
-          values = LSMFontDropdown,
-          hidden = function()
-                     return Trigger.TypeID ~= 'fonttype'
-                   end,
-        },
-        ParsTextStyle = {
-          type = 'select',
-          name = 'Style',
-          order = 22,
-          style = 'dropdown',
-          values = FontStyleDropdown,
-          hidden = function()
-                     return Trigger.TypeID ~= 'fontstyle'
-                   end,
-        },
-        ParsSoundChannel = {
-          type = 'select',
-          name = 'Sound Channel',
-          order = 23,
-          style = 'dropdown',
-          values = TriggerSoundChannelDropdown,
-          hidden = function()
-                     return Trigger.TypeID ~= 'sound'
-                   end,
-        },
-        GetParsColorType = {
-          type = 'select',
-          name = 'Color Type',
-          desc = 'This will override the current color, if there is a new one to replace it with',
-          order = 24,
-          values = function()
-                     return Group.Objects[Trigger.TypeIndex].GetFnTypes
-                   end,
-          hidden = function()
-                     HideTooltip(true)
-                     return Group.Objects[Trigger.TypeIndex].GetFnTypes == nil or strfind(Trigger.TypeID, 'color') == nil
-                   end,
-        },
-        GetParsColorUnit = {
-          type = 'input',
-          name = 'Color Unit',
-          desc = 'Enter the unit you want to get the color from',
-          order = 25,
-          hidden = function()
-                     local GetFnTypeID = Trigger.GetFnTypeID
-
-                     return Group.Objects[Trigger.TypeIndex].GetFnTypes == nil or
-                            GetFnTypeID ~= 'classcolor' and GetFnTypeID ~= 'powercolor' and GetFnTypeID ~= 'combatcolor' and
-                            GetFnTypeID ~= 'taggedcolor'
-                   end,
-        },
-      },
-    },
-    --=============================
-    -- Value
-    --=============================
-
-    --================================================
-    -- Condition UI here. See bottom of this function.
-    --================================================
-    Value = {
-      type = 'group',
-      order = 21,
-      name = '',
-      hidden = function()
-                 return TriggerAction('Value') == 0 or not Trigger.Select
-               end,
-      disabled = function()
-                   return not Trigger.Enabled
-                 end,
-      args = {
-        AuraOperator = {
-          type = 'select',
-          name = 'Operator',
-          width = 'half',
-          desc = '"and" means all auras\n"or" at least one aura',
-          order = 1,
-          values = TriggerOperatorDropdown.auras,
-          style = 'dropdown',
-          hidden = function()
-                     return Trigger.Static or Trigger.ValueTypeID ~= 'auras'
-                   end,
-        },
-        State = {
-          type = 'toggle',
-          name = 'Inverse',
-          order = 2,
-          hidden = function()
-                     return Trigger.Static or Trigger.ValueTypeID ~= 'state'
-                   end,
-        },
-        AuraValue = {
-          type = 'input',
-          name = function()
-                   if InvalidSpell then
-                     return 'Invalid aura'
-                   else
-                     return 'Aura name or Spell ID'
-                   end
-                 end,
-          order = 3,
-          dialogControl = 'GUB_Aura_EditBox',
-          set = function(Info, Value, SpellID)
-                  InvalidSpell = false
-                  Value = strtrim(Value)
-
-                  if Value == '' then
-                    return
-                  end
-
-                  -- Must be valid SpellID or selected spell.
-                  if SpellID == nil then
-
-                    -- Check to make sure spellID is a number
-                    Value = tonumber(Value)
-                    if Value == nil then
-                      InvalidSpell = true
-                    else
-                      -- Check to make sure the spellID exists.
-                      local Name = GetSpellInfo(Value)
-
-                      if Name == nil or Name == '' then
-                        InvalidSpell = true
-                      else
-                        SpellID = Value
-                      end
-                    end
-                  end
-
-                  -- Add aura to Trigger.Auras
-                  -- And create aura menu
-                  if not InvalidSpell then
-                    if Trigger.Auras[SpellID] == nil then
-                      Trigger.Auras[SpellID] = {
-                        Own = false,
-                        Unit = 'player',
-                        StackOperator = '>=',
-                        Stacks = 0,
-                      }
-
-                      -- Add option
-                      BBar:CheckTriggers()
-                      AddAuraOption(AuraGroupOrder, UBF, BBar, TO.args.Value, SpellID, Trigger)
-
-                      -- update the bar
-                      UBF:Update()
-                      BBar:Display()
-                    end
-                  end
-                end,
-          get = function()
-                end,
-          hidden = function()
-                     return Trigger.Static or Trigger.ValueTypeID ~= 'auras'
-                   end,
-        },
-        AurasHide = {
-          type = 'execute',
-          name = function()
-                   if Trigger.HideAuras then
-                     return 'Show'
-                   else
-                     return 'Hide'
-                   end
-                 end,
-          width = 'half',
-          order = 5,
-          func = function()
-                   Trigger.HideAuras = not Trigger.HideAuras
-                   HideTooltip(true)
-                 end,
-          hidden = function()
-                     return Trigger.Auras == nil or Trigger.Static or Trigger.ValueTypeID ~= 'auras'
-                   end,
-        },
-        --================================================
-        -- Auras UI here. See bottom of this function.
-        --================================================
-      },
-    },
-    --================================
-    -- Utility
-    --================================
-    Utility = {
-      type = 'group',
-      order = 21,
-      name = '',
-      hidden = function()
-                 return TriggerAction('Util') == 0 or not Trigger.Select
-               end,
-      args = {
-        ClearSwap = CreateClearSwapButton(3, 'select'),
-        Swap = CreateSwapButton(4, 'select'),
-        Move = {
-          type = 'execute',
-          order = 5,
-          name = 'Move',
-          width = 'half',
-          hidden = function()
-                     return next(ClipBoard) ~= nil
-                   end,
-          disabled = function()
-                       HideTooltip(true)
-                       return ClipBoard.Move ~= nil
-                     end,
-          desc = 'Click "Move" on the trigger you want moved. Then click on "paste" for the destination.',
-          func = function()
-                   local Move = {}
-
-                   Move.Source = Trigger
-                   Move.SourceTGA = TGA
-                   ClipBoard.Move = Move
-
-                   HideTooltip(true)
-                 end,
-        },
-        Copy = {
-          type = 'execute',
-          order = 6,
-          name = 'Copy',
-          width = 'half',
-          hidden = function()
-                     return next(ClipBoard) ~= nil
-                   end,
-          desc = 'Click "Copy" on the trigger you want copied. Then click on "paste" for the destination.',
-          func = function()
-                   local Copy = {}
-
-                   Copy.Source = Trigger
-                   Copy.SourceTGA = TGA
-                   ClipBoard.Copy = Copy
-
-                   HideTooltip(true)
-                 end,
-        },
-        Spacer7 = CreateSpacer(7, 'half'),
-        Delete = {
-          type = 'execute',
-          order = 8,
-          name = 'Delete',
-          width = 'half',
-          desc = function()
-                   return format('Delete trigger %s', Trigger.OrderNumber)
-                 end,
-          confirm = function()
-                      if not IsModifierKeyDown() then
-                        return 'Are you sure you want to delete this trigger?\n Hold a modifier key down and click delete to bypass this warning'
-                      end
-                    end,
-          func = function()
-                   BBar:RemoveTriggers(Trigger.Index)
-                   DeleteTriggerOption(TGA, Trigger)
-
-                   -- update the bar
-                   UBF:Update()
-                   BBar:Display()
-
-                   HideTooltip(true)
-                 end,
-          hidden = function()
-                     return next(ClipBoard) ~= nil
-                   end,
-        },
       },
     },
   }
+end
 
-  --============
-  -- Stances options modification
-  --============
-  TO.args.StanceOptions.hidden = function()
-                                 return not Trigger.Select or not Trigger.StanceEnabled
-                               end
-  TO.args.StanceOptions.disabled = function()
-                                   return not Trigger.Enabled
-                                 end
-  --============
-  -- GET and SET
-  --============
-  TO.get = function(Info)
-             local KeyName = Info[#Info]
-
-             if strfind(KeyName, 'Pars') then
-               if KeyName == 'GetParsColorType' then
-                 return Group.Objects[Trigger.TypeIndex].GetFnTypeIDs[Trigger.GetFnTypeID]
-
-               -- Color unit for a get function. so GetPars[1] is used.
-               elseif KeyName == 'GetParsColorUnit' then
-                 return Trigger.GetPars[1] or ''
-               else
-                 local Pars = Trigger.Pars
-                 local p1, p2, p3, p4 = Pars[1], Pars[2], Pars[3], Pars[4]
-
-                 if KeyName == 'ParsColor' then
-                   return p1 or 0, p2 or 0, p3 or 0, p4 or 1
-
-                 elseif KeyName == 'ParsTextOffsetX' then
-                   return p1
-                 elseif KeyName == 'ParsTextOffsetY' then
-                   return p2
-                 elseif KeyName == 'ParsTextSize' then
-                   return p1
-                 elseif KeyName == 'ParsTextType' then
-                   return p1
-                 elseif KeyName == 'ParsTextStyle' then
-                   return p1
-
-                 elseif KeyName == 'ParsSoundChannel' then
-                   return p2
-
-                 else
-                   return p1
-                 end
-               end
-             elseif KeyName == 'AuraOperator' then
-               return FindMenuItem(TriggerOperatorDropdown.auras, Trigger.AuraOperator)
-             elseif KeyName == 'ValueType' then
-               return Group.RValueTypes[Trigger.ValueType]
-             elseif KeyName == 'Type' then
-               return Group.RTypes[Trigger.Type]
-             elseif KeyName == 'State' then
-               return not Trigger.State
-             else
-               return Trigger[KeyName]
-             end
-           end
-  TO.set = function(Info, Value, g, b, a)
-             local KeyName = Info[#Info]
-
-             if strfind(KeyName, 'Pars') then
-               if KeyName == 'GetParsColorType' then
-                 Trigger.GetFnTypeID = Group.Objects[Trigger.TypeIndex].GetFnTypeIDs[Value]
-
-                 -- make sure pars are correct.
-                 SetDefaultPars(Trigger)
-
-               -- Color unit for a get function. so GetPars[1] is used.
-               elseif KeyName == 'GetParsColorUnit' then
-                 Trigger.GetPars[1] = Value
-               else
-                 local Pars = Trigger.Pars
-
-                 if KeyName == 'ParsColor' then
-                   Pars[1], Pars[2], Pars[3], Pars[4] =  Value, g, b, a
-
-                   -- Update the triggers here for better performance
-                   -- Dont need to do a checktriggers here.
-                   UBF:Update()
-                   BBar:Display()
-                   return
-
-                 elseif KeyName == 'ParsTextureScale' then
-                   Pars[1] = Value
-
-                   -- Update the triggers here for better performance
-                   -- Dont need to do a checktriggers here.
-                   UBF:Update()
-                   BBar:Display()
-                   return
-
-                 elseif strfind(KeyName, 'TextOffset') or KeyName == 'ParsTextSize' or
-                        KeyName == 'ParsTextType' or KeyName == 'ParsTextStyle' then
-                   if KeyName == 'ParsTextOffsetY' then
-                     Pars[2] = Value
-                   else
-                     Pars[1] = Value
-                   end
-                   -- Update the triggers here for better performance
-                   -- Dont need to do a checktriggers here.
-                   UBF:Update()
-                   BBar:Display()
-                   return
-
-                 elseif KeyName == 'ParsSoundChannel' then
-                   Pars[2] = Value
-                 else
-                   Pars[1] = Value
-                 end
-               end
-             elseif KeyName == 'AuraOperator' then
-               Trigger.AuraOperator = TriggerOperatorDropdown.auras[Value]
-
-             elseif KeyName == 'ValueType' then
-               Trigger.ValueTypeID = Group.ValueTypeIDs[Value]
-               Trigger.ValueType = strlower(Group.ValueTypes[Value])
-
-             elseif KeyName == 'Type' then
-               Trigger.TypeID = Group.TypeIDs[Value]
-               Trigger.Type = strlower(Group.Types[Value])
-
-               -- make sure pars are correct.
-               SetDefaultPars(Trigger)
-             elseif KeyName == 'State' then
-               Trigger.State = not Value
-             else
-               Trigger[KeyName] = Value
-             end
-
-             -- Update bar to reflect trigger changes
-             if KeyName ~= 'AnimateSpeed' and KeyName ~= 'Animate' then
-               BBar:CheckTriggers()
-             end
-             UBF:Update()
-             BBar:Display()
-           end
-
-  -- Add aura options
+-------------------------------------------------------------------------------
+-- CreateTriggerAuraOptions
+--
+-- Subfunction of CreateTriggerOptions()
+--
+-- Create dynamic options that can be add and remove auras
+--
+-- Order     Position in the options
+-- UBF       Unitbar Frame
+-- BBar      Table that contains the bar thats using this trigger
+-- Trigger  Current trigger being modified
+-------------------------------------------------------------------------------
+local function CreateTriggerAuraOptions(Order, UBF, BBar, Trigger)
   local Auras = Trigger.Auras
 
-  if Auras then
-    for SpellID, Aura in pairs(Auras) do
-      AddAuraOption(AuraGroupOrder, UBF, BBar, TO.args.Value, SpellID, Trigger)
-    end
+  local AuraOptions = {
+    type = 'group',
+    name = 'Auras',
+    order = Order,
+    get = function(Info)
+            local KeyName = Info[#Info]
+
+            return Auras[KeyName]
+          end,
+    set = function(Info, Value)
+            local KeyName = Info[#Info]
+
+            Auras[KeyName] = Value
+
+            -- Update bar to reflect trigger changes
+            BBar:CheckTriggers()
+            UBF:Update()
+            BBar:Display()
+          end,
+    args = {},
+  }
+
+  local AOA = AuraOptions.args
+
+  AOA.Disabled = {
+    type = 'toggle',
+    name = 'Disable',
+    order = 0.1,
+  }
+  AOA.All = {
+    type = 'toggle',
+    name = 'All',
+    width = 'half',
+    desc = 'If checked, then all auras must be found. \nIf All then all units must match per aura',
+    order = 0.2,
+  }
+  AOA.Add = {
+    type = 'execute',
+    name = 'Add',
+    width = 'half',
+    hidden = function()
+               return #Auras > 0
+             end,
+    disabled = function()
+                 return Auras.Disabled
+               end,
+    func = function()
+             local Aura = {}
+
+             Main:CopyTableValues(DefaultUB.TriggerAurasArray, Aura, true)
+             Auras[1] = Aura
+
+             -- Update bar to reflect trigger changes
+             BBar:CheckTriggers()
+             UBF:Update()
+             BBar:Display()
+
+             AddTriggerAuraOption(UBF, BBar, AOA, Auras, Aura)
+           end,
+  }
+
+  for Index = 1, #Auras do
+    AddTriggerAuraOption(UBF, BBar, AOA, Auras, Auras[Index])
   end
 
-  -- Add condition options
-  for _, Condition in ipairs(Trigger.Conditions) do
-    AddConditionOption(ConditionOrder, TO.args.Value, UBF, BBar, Condition, Trigger)
+  return AuraOptions
+end
+
+-------------------------------------------------------------------------------
+-- AddTriggerConditionOption
+--
+-- Subfunction of CreateTriggerConditionOptions()
+--
+-- Adds condition options for the trigger
+--
+-- UBF                         Unitbar Frame
+-- BBar                        Table that contains the bar thats using this condition
+-- COA                         Condition Option Args
+-- InputValueNamesDropdown     Menu to select which input name to use
+-- InputValueTypes             Contains the value type for each input name
+-- Conditions                  Contains all the conditions
+-- Condition                   Current condition that these options will use
+-------------------------------------------------------------------------------
+local function AddTriggerConditionOption(UBF, BBar, COA, Conditions, Condition)
+  local ConditionGroup = 'ConditionGroup' .. ToHex(Condition)
+  local TriggerData = BBar.TriggerData
+  local InputValueNamesDropdown = TriggerData.InputValueNamesDropdown
+  local InputValueTypes = TriggerData.InputValueTypes
+  local InputValueType
+
+  COA[ConditionGroup] = {
+    type = 'group',
+    name = '',
+    dialogInline = true,
+    order = function()
+              return Condition.OrderNumber
+            end,
+    disabled = function()
+                 return Conditions.Disabled
+               end,
+    get = function(Info)
+            local KeyName = Info[#Info]
+            local Value = Condition[KeyName]
+
+            if KeyName == 'InputValueName' then
+              local InputValueName = Condition.InputValueName
+              Value = FindMenuItem(InputValueNamesDropdown, InputValueName)
+
+              InputValueName = InputValueNamesDropdown[Value]
+              InputValueType = InputValueTypes[InputValueName]
+            elseif KeyName == 'Operator' then
+              Value = FindMenuItem(TriggerOperatorDropdown[InputValueType], Condition.Operator)
+            elseif KeyName == 'Value' then
+              Value = tostring(Value)
+            end
+
+            return Value
+          end,
+    set = function(Info, Value)
+            local KeyName = Info[#Info]
+
+            if KeyName == 'InputValueName' then
+              Value = InputValueNamesDropdown[Value]
+            elseif KeyName == 'Operator' then
+              Value = TriggerOperatorDropdown[InputValueType][Value]
+            end
+            Condition[KeyName] = Value
+
+            -- Update bar to reflect trigger changes
+            BBar:CheckTriggers()
+            UBF:Update()
+            BBar:Display()
+          end,
+    args = {
+      Header = {
+        type = 'header',
+        name = '',
+        order = 10,
+      },
+      InputValueName = {
+        type = 'select',
+        name = 'Input Value Name',
+        order = 20,
+        values = InputValueNamesDropdown,
+        style = 'dropdown',
+      },
+      Operator = {
+        type = 'select',
+        name = 'Operator',
+        width = 'half',
+        order = 21,
+        hidden = function()
+                   return InputValueType == 'state'
+                 end,
+        values = function()
+                   return TriggerOperatorDropdown[InputValueType]
+                 end,
+      },
+      Value = {
+        type = 'input',
+        name = function()
+                 return format('Value (%s)', InputValueType or '')
+               end,
+        order = 22,
+        hidden = function()
+                   return InputValueType ~= 'whole' and
+                          InputValueType ~= 'decimal' and
+                          InputValueType ~= 'percent' and
+                          InputValueType ~= 'text'
+                 end,
+      },
+      State = {
+        type = 'select',
+        name = 'Value (state)',
+        order = 23,
+        hidden = function()
+                   return InputValueType ~= 'state'
+                 end,
+        values = TriggerStateValueDropdown,
+        get = function()
+                local Value = Condition.Value
+                Value = Value and 1 or 2
+
+                return Value
+              end,
+        set = function(Info, Value)
+                Condition.Value = Value == 1 and true or false
+
+                -- Update bar to reflect trigger changes
+                BBar:CheckTriggers()
+                UBF:Update()
+                BBar:Display()
+              end,
+      },
+      Spacer40 = CreateSpacer(40),
+      Add = {
+        type = 'execute',
+        name = function()
+                 if Condition.OrderNumber < #Conditions then
+                   return 'Insert'
+                 else
+                   return 'Add'
+                 end
+               end,
+        order = 41,
+        width = 'half',
+        func = function()
+                 local Index = Condition.OrderNumber
+                 local Condition = {}
+
+                 Main:CopyTableValues(DefaultUB.TriggerConditionsArray, Condition, true)
+                 tinsert(Conditions, Index + 1, Condition)
+
+                 BBar:CheckTriggers()
+                 AddTriggerConditionOption(UBF, BBar, COA, Conditions, Condition)
+
+                 -- Update bar to reflect trigger changes
+                 UBF:Update()
+                 BBar:Display()
+               end,
+      },
+      Up = {
+        type = 'execute',
+        name = 'Up',
+        order = 42,
+        width = 'half',
+        hidden = function()
+                   return Condition.OrderNumber == 1
+                 end,
+        func = function()
+                 local Index = Condition.OrderNumber
+
+                 Conditions[Index], Conditions[Index - 1] = Conditions[Index - 1], Conditions[Index]
+
+                 -- Update bar to reflect trigger changes
+                 BBar:CheckTriggers()
+                 UBF:Update()
+                 BBar:Display()
+               end
+      },
+      Down = {
+        type = 'execute',
+        name = 'Down',
+        order = 43,
+        width = 'half',
+        hidden = function()
+                   return Condition.OrderNumber == #Conditions
+                 end,
+        func = function()
+                 local Index = Condition.OrderNumber
+
+                 Conditions[Index], Conditions[Index + 1] = Conditions[Index + 1], Conditions[Index]
+
+                 -- Update bar to reflect trigger changes
+                 BBar:CheckTriggers()
+                 UBF:Update()
+                 BBar:Display()
+               end
+      },
+      Spacer14 = CreateSpacer(44, 'half'),
+      Spacer15 = CreateSpacer(45, 'half', function()
+                                            local Index = Condition.OrderNumber
+                                            return Index > 1 and Index < #Conditions
+                                          end),
+      Delete = {
+        type = 'execute',
+        name = 'Delete',
+        order = 46,
+        width = 'half',
+        confirm = function()
+                    if not IsModifierKeyDown() then
+                      return 'Are you sure you want to delete this condition?\n Hold a modifier key down and click delete to bypass this warning'
+                    end
+                  end,
+        func = function()
+                 tremove(Conditions, Condition.OrderNumber)
+
+                 -- Delete this option
+                 COA[ConditionGroup] = nil
+
+                 -- Update bar to reflect trigger changes
+                 BBar:CheckTriggers()
+                 UBF:Update()
+                 BBar:Display()
+
+                 HideTooltip(true)
+               end
+      },
+    },
+  }
+end
+
+-------------------------------------------------------------------------------
+-- CreateTriggerConditionOptions
+--
+-- Creates dynamic options that can add and remove conditions
+--
+-- Subfunction of CreateTriggerOptions()
+--
+-- Order     Position in the options
+-- UBF       Unitbar Frame
+-- BBar      Table that contains the bar thats using this trigger
+-- Trigger   Current trigger being modified
+-------------------------------------------------------------------------------
+local function CreateTriggerConditionOptions(Order, UBF, BBar, Trigger)
+  local Conditions = Trigger.Conditions
+
+  local ConditionOptions = {
+    type = 'group',
+    name = 'Conditions',
+    order = Order,
+    get = function(Info)
+            local KeyName = Info[#Info]
+
+            return Conditions[KeyName]
+          end,
+    set = function(Info, Value)
+            local KeyName = Info[#Info]
+
+            Conditions[KeyName] = Value
+
+            -- Update bar to reflect trigger changes
+            BBar:CheckTriggers()
+            UBF:Update()
+            BBar:Display()
+          end,
+    args = {},
+  }
+
+  local COA = ConditionOptions.args
+
+  COA.Disabled = {
+    type = 'toggle',
+    name = 'Disable',
+    order = 0.1,
+  }
+  COA.All = {
+    type = 'toggle',
+    name = 'All',
+    width = 'half',
+    desc = 'If checked, then all conditions must be true',
+    order = 0.2,
+  }
+  COA.Add = {
+    type = 'execute',
+    name = 'Add',
+    width = 'half',
+    order = 1,
+    hidden = function()
+
+               return #Conditions > 0
+             end,
+    disabled = function()
+                 return Conditions.Disabled
+               end,
+    func = function()
+             local Condition = {}
+
+             Main:CopyTableValues(DefaultUB.TriggerConditionsArray, Condition, true)
+             Conditions[1] = Condition
+
+             -- Update bar to reflect trigger changes
+             BBar:CheckTriggers()
+             UBF:Update()
+             BBar:Display()
+
+             AddTriggerConditionOption(UBF, BBar, COA, Conditions, Condition)
+           end,
+  }
+
+  for Index = 1, #Conditions do
+    AddTriggerConditionOption(UBF, BBar, COA, Conditions, Conditions[Index])
+  end
+
+  return ConditionOptions
+end
+
+-------------------------------------------------------------------------------
+-- AddTriggerTalentOption
+--
+-- Subfunction of CreateTriggerTalentOptions()
+--
+-- Adds talent options for this trigger
+--
+-- UBF                       Unitbar frame
+-- BBar                      Table that contains the bar thats using these talents
+-- TOA                       Talent Option Args
+-- Talents                   Contains all the talents
+-- Talent                    Current talent that these options will use
+-------------------------------------------------------------------------------
+local function AddTriggerTalentOption(UBF, BBar, TOA, Talents, Talent)
+  local TalentGroup = 'TalentGroup' .. ToHex(Talent)
+  local TalentTrackersData = Main.TalentTrackersData
+  local SpellIDs = TalentTrackersData.SpellIDs
+  local PvE1Dropdown = TalentTrackersData.PvE1Dropdown
+  local PvE2Dropdown = TalentTrackersData.PvE2Dropdown
+  local PvE3Dropdown = TalentTrackersData.PvE3Dropdown
+  local PvE1IconDropdown = TalentTrackersData.PvE1IconDropdown
+  local PvE2IconDropdown = TalentTrackersData.PvE2IconDropdown
+  local PvE3IconDropdown = TalentTrackersData.PvE3IconDropdown
+  local TabNames = {}
+
+  -- Get tab names
+  for TabIndex = 1, 3 do
+    TabNames[TabIndex] = GetTalentTabInfo(TabIndex)
+  end
+
+  TOA[TalentGroup] = {
+    type = 'group',
+    name = '',
+    dialogInline = true,
+    order = function()
+              return Talent.OrderNumber
+            end,
+    disabled = function()
+                 return Talents.Disabled
+               end,
+    get = function(Info)
+            if Info[#Info] == 'Match' then
+              return Talent.Match
+            end
+            return
+          end,
+    set = function(Info, Value)
+            local KeyName = Info[#Info]
+
+            if KeyName == 'Match' then
+              Talent.Match = Value
+            elseif strfind(KeyName, 'TalentName', 1, true) then
+              local PvEDropdown
+
+              if KeyName == 'TalentName1' then
+                PvEDropdown = PvE1Dropdown
+              elseif KeyName == 'TalentName2' then
+                PvEDropdown = PvE2Dropdown
+              else
+                PvEDropdown = PvE3Dropdown
+              end
+
+              Talent.SpellID = SpellIDs[ PvEDropdown[Value] ]
+            end
+
+            -- Update bar to reflect trigger changes
+            BBar:CheckTriggers()
+            UBF:Update()
+            BBar:Display()
+          end,
+    args = {
+      Header = {
+        type = 'header',
+        name = '',
+        order = 10,
+      },
+      TalentNameSelected = {
+        type = 'input',
+        width = 'full',
+        order = 11,
+        dialogControl = 'GUB_Spell_Info',
+        get = function() end,
+        set = function() end,
+        name = function()
+                 local SpellID = Talent.SpellID or 0
+                 local Match = Talent.Match and '(Match)' or "(Can't Match)"
+
+                 if SpellID == 0 then
+                   return format('%s:20:16:%s', 0, 'No talent selected. Pick one from the pulldowns below')
+                 elseif type(SpellID) == 'string' then
+                   return format('0:20:16: %s (log into character to finish convert)', SpellID)
+                 else
+                   return format('%s:20:16: %s', SpellID, Match)
+                 end
+               end,
+      },
+      MinimizeGroup = {
+        type = 'group',
+        name = '',
+        dialogInline = true,
+        order = 20,
+        hidden = function()
+                   return Talent.Minimized
+                 end,
+        args = {
+          TalentName1 = {
+            type = 'select',
+            dialogControl = 'GUB_Dropdown_Select',
+            name = TabNames[1],
+            order = 1,
+            values = function()
+                       return PvE1IconDropdown
+                     end,
+          },
+          TalentName2 = {
+            type = 'select',
+            dialogControl = 'GUB_Dropdown_Select',
+            name = TabNames[2],
+            order = 2,
+            values = function()
+                       return PvE2IconDropdown
+                     end,
+          },
+          TalentName3 = {
+            type = 'select',
+            dialogControl = 'GUB_Dropdown_Select',
+            name = TabNames[3],
+            order = 3,
+            values = function()
+                       return PvE3IconDropdown
+                     end,
+          },
+          Match = {
+            type = 'toggle',
+            name = 'Match',
+            desc = "If unchecked, then the talent can't match",
+            order = 4,
+          },
+        },
+      },
+      Minimize = {
+        type = 'execute',
+        width = 'half',
+        order = 40,
+        name = function()
+                 if Talent.Minimized then
+                   return 'Expand'
+                 else
+                   return 'Collapse'
+                 end
+               end,
+        func = function()
+                 Talent.Minimized = not Talent.Minimized
+               end,
+      },
+      Add = {
+        type = 'execute',
+        name = function()
+                 if Talent.OrderNumber < #Talents then
+                   return 'Insert'
+                 else
+                   return 'Add'
+                 end
+               end,
+        order = 41,
+        width = 'half',
+        func = function()
+                 local Index = Talent.OrderNumber
+                 local Talent = {}
+
+                 Main:CopyTableValues(DefaultUB.TriggerTalentsArray, Talent, true)
+                 tinsert(Talents, Index + 1, Talent)
+
+                 BBar:CheckTriggers()
+                 AddTriggerTalentOption(UBF, BBar, TOA, Talents, Talent)
+
+                 -- Update bar to reflect trigger changes
+                 UBF:Update()
+                 BBar:Display()
+               end,
+      },
+      Up = {
+        type = 'execute',
+        name = 'Up',
+        order = 42,
+        width = 'half',
+        hidden = function()
+                   return Talent.OrderNumber == 1
+                 end,
+        func = function()
+                 local Index = Talent.OrderNumber
+
+                 Talents[Index], Talents[Index - 1] = Talents[Index - 1], Talents[Index]
+
+                 -- Update bar to reflect trigger changes
+                 BBar:CheckTriggers()
+                 UBF:Update()
+                 BBar:Display()
+               end
+      },
+      Down = {
+        type = 'execute',
+        name = 'Down',
+        order = 43,
+        width = 'half',
+        hidden = function()
+                   return Talent.OrderNumber == #Talents
+                 end,
+        func = function()
+                 local Index = Talent.OrderNumber
+
+                 Talents[Index], Talents[Index + 1] = Talents[Index + 1], Talents[Index]
+
+                 -- Update bar to reflect trigger changes
+                 BBar:CheckTriggers()
+                 UBF:Update()
+                 BBar:Display()
+               end
+      },
+      Spacer45 = CreateSpacer(45, 'half', function()
+                                            local Index = Talent.OrderNumber
+                                            return Index > 1 and Index < #Talents
+                                          end),
+      Delete = {
+        type = 'execute',
+        name = 'Delete',
+        order = 46,
+        width = 'half',
+        confirm = function()
+                    if not IsModifierKeyDown() then
+                      return 'Are you sure you want to delete this talent?\n Hold a modifier key down and click delete to bypass this warning'
+                    end
+                  end,
+        func = function()
+                 tremove(Talents, Talent.OrderNumber)
+
+                 -- Delete this option
+                 TOA[TalentGroup] = nil
+
+                 -- Update bar to reflect trigger changes
+                 BBar:CheckTriggers()
+                 UBF:Update()
+                 BBar:Display()
+
+                 HideTooltip(true)
+               end
+      },
+    },
+  }
+end
+
+-------------------------------------------------------------------------------
+-- CreateTriggerTalentOptions
+--
+-- Createsa  dynamic options that can add remove talents
+--
+-- Subfunction of CreateTriggerOptions()
+--
+-- Order     Position in the options
+-- UBF       Unitbar frame
+-- BBar      Table that contains the bar thats using this trigger
+-- Trigger   Current trigger being modified
+-------------------------------------------------------------------------------
+local function CreateTriggerTalentOptions(Order, UBF, BBar, Trigger)
+  local Talents = Trigger.Talents
+
+  local TalentOptions = {
+    type = 'group',
+    name = 'Talents',
+    order = Order,
+    get = function(Info)
+            local KeyName = Info[#Info]
+
+            return Talents[KeyName]
+          end,
+    set = function(Info, Value)
+            local KeyName = Info[#Info]
+
+            Talents[KeyName] = Value
+
+            -- Update bar to reflect trigger changes
+            BBar:CheckTriggers()
+            UBF:Update()
+            BBar:Display()
+          end,
+    args = {},
+  }
+
+  local TOA = TalentOptions.args
+
+  TOA.Disabled = {
+    type = 'toggle',
+    name = 'Disable',
+    order = 0.1,
+  }
+  TOA.All = {
+    type = 'toggle',
+    name = 'All',
+    width = 'half',
+    desc = 'If checked, then all talents must be active',
+    order = 0.2,
+  }
+  TOA.Add = {
+    type = 'execute',
+    name = 'Add',
+    width = 'half',
+    order = 1,
+    hidden = function()
+               return #Talents > 0
+             end,
+    disabled = function()
+                 return Talents.Disabled
+               end,
+    func = function()
+             local Talent = {}
+
+             Main:CopyTableValues(DefaultUB.TriggerTalentsArray, Talent, true)
+             Talents[1] = Talent
+
+             -- Update bar to reflect changes
+             BBar:CheckTriggers()
+             UBF:Update()
+             BBar:Display()
+
+             AddTriggerTalentOption(UBF, BBar, TOA, Talents, Talent)
+           end,
+  }
+
+  for Index = 1, #Talents do
+    AddTriggerTalentOption(UBF, BBar, TOA, Talents, Talents[Index])
+  end
+
+  return TalentOptions
+end
+
+-------------------------------------------------------------------------------
+-- RemoveTriggerTabOptions
+--
+-- Deletes all tab options no longer being used
+--
+-- SubFunction of EditTriggerListOptions()
+--
+-- TOA        TriggerOptionsArgs
+-- Triggers   Triggers are used to see which options to delete
+-------------------------------------------------------------------------------
+local function RemoveTriggerTabOptions(TOA, Triggers)
+  local TriggersHex = {}
+
+  for TriggerIndex = 1, #Triggers do
+    TriggersHex[ToHex(Triggers[TriggerIndex])] = 1
+  end
+
+  -- Remove options not being used anymore
+  for Key in pairs(TOA) do
+    if strfind(Key, 'Activate') or strfind(Key, 'Display') then
+      local _, TriggerHex = strsplit(':', Key)
+
+      -- Delete only if trigger doesn't exist
+      if TriggersHex[TriggerHex] == nil then
+        TOA[Key] = nil
+      end
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
+-- CreateTriggerTabOptions
+--
+-- SubFunction of CreateTriggerOptions()
+--
+-- Creates the tabs that appear after trigger list tab
+--
+-- BarType      Current bar this trigger belongs to
+-- UBF          Unitbar Frame
+-- BBar         Bar object
+-- TOA          Trigger Options args
+-- Trigger      Current Trigger these options belong to
+-- Selected     See EditTriggerListOptions()
+-------------------------------------------------------------------------------
+local function CreateTriggerTabOptions(BarType, UBF, BBar, TOA, Trigger, Selected)
+  local Hex = {}
+  local HexSt = ToHex(Hex)
+  local Activate = 'Activate' .. HexSt .. ':' .. ToHex(Trigger)
+  local Display = 'Display' .. HexSt .. ':' .. ToHex(Trigger)
+
+  local TriggerData = BBar.TriggerData
+  local GroupsDropdown = TriggerData.GroupsDropdown
+  local Groups = TriggerData.Groups
+
+  -- Activate tab
+  TOA[Activate] = {
+    type = 'group',
+    name = 'Activate',
+    order = 100,
+    childGroups = 'tab',
+    hidden = function()
+               return Selected.Edit ~= nil or Trigger ~= Selected.Trigger
+             end,
+    disabled = function()
+                 return Trigger.Disabled or Trigger.Static
+               end,
+    args = {
+      -- Stances
+      StanceTab = {
+        type = 'group',
+        name = 'Stances',
+        order = 1,
+        args = {
+          StanceEnabled = {
+            type = 'toggle',
+            name = 'Enable',
+            order = 1,
+            get = function()
+                    return Trigger.StanceEnabled
+                  end,
+            set = function(Info, Value)
+                    Trigger.StanceEnabled = Value
+
+                    -- Update bar to reflect trigger changes
+                    BBar:CheckTriggers()
+                    UBF:Update()
+                    BBar:Display()
+                  end,
+          },
+          Header = {
+            type = 'header',
+            name = '',
+            order = 2,
+          },
+          StanceOptions = CreateStanceOptions(BarType, 3, Trigger.ClassStances, BBar, function() return not Trigger.StanceEnabled end),
+        },
+      },
+
+      -- Talents
+      TalentOptions = CreateTriggerTalentOptions(2, UBF, BBar, Trigger),
+
+      -- Auras
+      AuraOptions = CreateTriggerAuraOptions(3, UBF, BBar, Trigger),
+
+      -- Conditions
+      ConditionOptions = CreateTriggerConditionOptions(4, UBF, BBar, Trigger),
+    },
+  }
+
+  TOA[Display] = {
+    type = 'group',
+    name = function()
+             local Group = Groups[Trigger.GroupNumber]
+             local Index = Group.Objects[Trigger.ObjectTypeID].Index
+
+             return format('Display ( %s )  ( %s )', GroupsDropdown[Trigger.GroupNumber],
+                                                    Group.ObjectsDropdown[Index]         )
+           end,
+    order = 101,
+    hidden = function()
+               return Selected.Edit ~= nil or Trigger ~= Selected.Trigger
+             end,
+    disabled = function()
+                 return Trigger.Disabled
+               end,
+    args = {
+      DisplayOptions = CreateTriggerDisplayOptions(1, UBF, BBar, Trigger),
+    }
+  }
+end
+
+-------------------------------------------------------------------------------
+-- EditTriggerListOptions
+--
+-- Updates the trigger list depending on what type of editing is being applied
+--
+-- Subfunction of CreateTriggerOptions()
+--
+-- BarType           Current bar this trigger belongs to
+-- UBF               Unitbar frame to access the bar functions.
+-- BBar              The bar object to access the bar DB functions.
+-- Action            'list'   Show the current trigger list
+--                   'add'    Adds a new trigger copied from defaults
+--                   'copy'   Copies one trigger to a new index location
+--                   'move'   Moves one trigger to another index location
+--                   'swap'   Swaps two triggers with each others index location
+-- TLA               TriggerListArgs
+-- TOA               TriggerOptionsArgs
+-- Triggers          Array containing all the triggers
+-- Selected            For copy, move, swap, etc
+--   Trigger           Current trigger table selected
+--   Index             Current selected trigger
+-- SaveMenuKey       Don't delete the menu entry that matches this
+-------------------------------------------------------------------------------
+local function EditTriggerListOptions(BarType, UBF, BBar, Action, TLA, TOA, Triggers, Selected, SaveMenuKey)
+
+  -- Refresh if there are no triggers
+  if #Triggers == 0 then
+    Selected.Edit = true
+    Options:RefreshMainOptions()
+  end
+
+  if Action == 'list' then
+
+    wipe(Selected)
+    -- Delete all menu entries except the SaveMenuKey
+    for MenuKey, TriggerListArgs in pairs(TLA) do
+      if MenuKey ~= SaveMenuKey then
+        TLA[MenuKey] = nil
+      end
+    end
+
+    -- Create menu list
+    for TriggerIndex, Trigger in ipairs(Triggers) do
+      local MenuKey = ToHex(Trigger)
+
+      TLA[MenuKey] = {
+        type = 'group',
+        name = function()
+                 local Color
+                 local Name = TriggerTypeToIcon(Trigger.ObjectType, 14) .. ' ' .. Trigger.Name or ''
+                 if Trigger.Disabled then
+                   Color = 'ffdbdbdb'
+                 elseif Trigger.Static then
+                   Color = 'ff00f700'
+                 end
+                 if Color then
+                   return format('|c%s%s|r', Color, Name)
+                 else
+                   return Name
+                 end
+               end,
+        order = TriggerIndex,
+        disabled = function()
+                     Selected.Trigger = Trigger
+                     Selected.Index = TriggerIndex
+
+                     -- Refresh here so name field and tabs can update
+                     Options:RefreshMainOptions()
+
+                     return Action ~= 'list'
+                   end,
+        get = function(Info)
+                local KeyName = Info[#Info]
+
+                return Trigger[KeyName]
+              end,
+        set = function(Info, Value)
+                local KeyName = Info[#Info]
+
+                Trigger[KeyName] = Value
+
+                -- update the bar
+                BBar:CheckTriggers()
+                UBF:Update()
+                BBar:Display()
+              end,
+        args = {
+          Static = {
+            type = 'toggle',
+            name = 'Static',
+            order = 1,
+            width = 'half',
+            desc = 'Click to make the trigger always on',
+          },
+          Disabled = {
+            type = 'toggle',
+            name = 'Disable',
+            order = 2,
+            width = 'half',
+            desc = 'If checked, this trigger will no longer function',
+          },
+          Header10 = {
+            type = 'header',
+            name = '',
+            order = 10,
+          },
+          Add = {
+            type = 'execute',
+            name = 'Add',
+            order = 11,
+            width = 'half',
+            func = function()
+                     Action = 'add'
+                     Selected.Edit = true
+                     EditTriggerListOptions(BarType, UBF, BBar, 'add', TLA, TOA, Triggers, Selected)
+            end,
+          },
+          Copy = {
+            type = 'execute',
+            name = 'Copy',
+            order = 12,
+            width = 'half',
+            func = function()
+                     Action = 'copy'
+                     Selected.Edit = true
+                     EditTriggerListOptions(BarType, UBF, BBar, 'copy', TLA, TOA, Triggers, Selected)
+                   end,
+          },
+          Move = {
+            type = 'execute',
+            name = 'Move',
+            order = 13,
+            width = 'half',
+            func = function()
+                     Action = 'move'
+                     Selected.Edit = true
+                     EditTriggerListOptions(BarType, UBF, BBar, 'move', TLA, TOA, Triggers, Selected)
+                   end,
+          },
+          Swap = {
+            type = 'execute',
+            name = 'Swap',
+            order = 14,
+            width = 'half',
+            func = function()
+                     Action = 'swap'
+                     Selected.Edit = true
+                     EditTriggerListOptions(BarType, UBF, BBar, 'swap', TLA, TOA, Triggers, Selected)
+                   end
+          },
+          Header20 = {
+            type = 'header',
+            name = '',
+            order = 20,
+          },
+          Delete = {
+            type = 'execute',
+            name = 'Delete',
+            order = 21,
+            width = 'half',
+            confirm = function()
+                        if not IsModifierKeyDown() then
+                          return 'Are you sure you want to delete this trigger?\n Hold a modifier key down and click delete to bypass this warning'
+                        end
+                      end,
+            func = function()
+                     BBar:UndoTriggers()
+                     tremove(Triggers, TriggerIndex)
+
+                     if #Triggers == 0 then
+                       TLA[MenuKey] = nil
+                       Action = 'add'
+                     else
+                       Action = 'list'
+                     end
+                     EditTriggerListOptions(BarType, UBF, BBar, Action, TLA, TOA, Triggers, Selected)
+
+                     -- Delete tab options
+                     RemoveTriggerTabOptions(TOA, Triggers)
+
+                     -- update the bar
+                     BBar:CheckTriggers()
+                     UBF:Update()
+                     BBar:Display()
+                   end,
+          },
+          Cancel = {
+            type = 'execute',
+            name = 'Cancel',
+            order = 100,
+            width = 'half',
+            disabled = function()
+                         return Action == 'list'
+                       end,
+            func = function()
+                     EditTriggerListOptions(BarType, UBF, BBar, 'list', TLA, TOA, Triggers, Selected)
+                   end,
+          },
+        },
+      }
+    end
+  else
+    -- Create edit menu list
+    for TriggerIndex = 1, #Triggers + 1 do
+      local NewTrigger = {}
+      local MenuKey = ToHex(NewTrigger)
+
+      if Action == 'swap' and TriggerIndex > 1 or Action ~= 'swap' then
+        TLA[MenuKey] = {
+          type = 'group',
+          name = format('    <%s here>', Action),
+          order = TriggerIndex - 0.5,
+          args = {
+            Paste = {
+              type = 'execute',
+              name = strupper(strsub(Action, 1, 1)) .. strsub(Action, 2) ,
+              order = 10,
+              width = 'half',
+              func = function()
+                       if Action == 'add' then
+                         Main:CopyTableValues(DUB[UBF.BarType].Triggers.Default, NewTrigger, true)
+                         NewTrigger.Name = 'Trigger'
+                         tinsert(Triggers, TriggerIndex, NewTrigger)
+
+                       elseif Action == 'copy' then
+                         Main:CopyTableValues(Selected.Trigger, NewTrigger, true)
+
+                         NewTrigger.Name = 'Copy ' .. NewTrigger.Name
+                         tinsert(Triggers, TriggerIndex, NewTrigger)
+
+                       elseif Action == 'move' then
+                         local SelectedIndex = Selected.Index
+
+                         Main:CopyTableValues(Selected.Trigger, NewTrigger, true)
+                         tinsert(Triggers, TriggerIndex, NewTrigger)
+
+                         -- Check if Selected index has to be offset by 1.
+                         if TriggerIndex <= SelectedIndex then
+                           SelectedIndex = SelectedIndex + 1
+                         end
+                         tremove(Triggers, SelectedIndex)
+
+                       elseif Action == 'swap' then
+                         local SelectedTrigger = Selected.Trigger
+
+                         -- Do it this way so menu tree selection doesn't move
+                         Main:CopyTableValues(SelectedTrigger, NewTrigger, true)
+                         SelectedTrigger = {}
+                         Main:CopyTableValues(Triggers[TriggerIndex - 1], SelectedTrigger, true)
+                         Triggers[TriggerIndex - 1] = NewTrigger
+                         Triggers[Selected.Index] = SelectedTrigger
+
+                         -- Create a new tab for the Selected
+                         CreateTriggerTabOptions(BarType, UBF, BBar, TOA, SelectedTrigger, Selected, Selected)
+
+                         MenuKey = nil
+                       end
+
+                       -- Do this here before options updating
+                       BBar:CheckTriggers()
+
+                       -- Create tab options for new trigger
+                       CreateTriggerTabOptions(BarType, UBF, BBar, TOA, NewTrigger, Selected, Selected)
+
+                       EditTriggerListOptions(BarType, UBF, BBar, 'list', TLA, TOA, Triggers, Selected, MenuKey)
+
+                       -- Delete tab options
+                       RemoveTriggerTabOptions(TOA, Triggers)
+
+                       -- update the bar
+                       UBF:Update()
+                       BBar:Display()
+                     end
+            },
+            Cancel = {
+              type = 'execute',
+              name = 'Cancel',
+              order = 100,
+              width = 'half',
+              disabled = function()
+                           return #Triggers == 0
+                         end,
+              func = function()
+                       EditTriggerListOptions(BarType, UBF, BBar, 'list', TLA, TOA, Triggers, Selected)
+                     end,
+            },
+          },
+        }
+      end
+    end
   end
 end
 
 -------------------------------------------------------------------------------
 -- CreateTriggerOptions
 --
--- Creates trigger options that lets you add, remove, insert.
+-- SubFunction of CreateUnitBarOptions()
 --
--- SubFunction of CreateUnitBarOptions
+-- Creates the main UI for the triggers
 --
--- BarType        Options will be added for this bar.
--- Order          Order number in the options frame
--- Name           Name as it appears in the options frame.
+-- BarType    Current bar these trigger options are for
+-- Order      Position in the options
+-- Name       Name of the option
 -------------------------------------------------------------------------------
 local function CreateTriggerOptions(BarType, Order, Name)
 
@@ -4645,7 +4828,7 @@ local function CreateTriggerOptions(BarType, Order, Name)
     name = Name,
     order = Order,
     childGroups = 'tab',
-    args = {}, -- need this so ACE3 dont crash if triggers options are not created.
+    args = {},
   }
 
   -- Create the trigger list options.
@@ -4654,96 +4837,71 @@ local function CreateTriggerOptions(BarType, Order, Name)
     -- Only create triggers if they're enabled.
     if Main.UnitBars[BarType].Layout.EnableTriggers then
       local TOA = {}
+      local TLA
       TriggerOptions.args = TOA
 
       local UBF = UnitBarsF[BarType]
       local BBar = UBF.BBar
       local Triggers = UBF.UnitBar.Triggers
-      local Groups = BBar.Groups
+      local Selected = {}
+      local Action = 'list'
       local Notes = DUB[BarType].Triggers.Notes
-      local GroupNames = {} -- so I dont have to use format to index the tabs.
-      local ClipBoard = {}
 
+      -- Trigger Notes
       if Notes then
         TOA.Notes = {
           type = 'description',
           name = Notes,
-          order = 0.10,
+          order = 1,
         }
       end
 
-      TOA.MenuSync = {
-        type = 'toggle',
-        order = 0.3,
-        name = 'Menu Sync',
-        desc = 'If checked, all triggers will switch to the same menu selection',
-        set = function(Info, Value)
-                Triggers.MenuSync = Value
-              end,
+      -- Trigger Name
+      TOA.TriggerName = {
+        type = 'input',
+        name = function()
+                 local Name = ''
+                 local Trigger = Selected.Edit == nil and Selected.Trigger
+                 if Trigger then
+                   Name = TriggerTypeToIcon(Trigger.ObjectType, 14)
+                 end
+
+                 return Name .. ' Name'
+               end,
+        order = 2,
+        width = 'full',
+        disabled = function()
+                     return Selected.Edit
+                   end,
         get = function()
-                return Triggers.MenuSync
+                return Selected.Edit == nil and Selected.Trigger and Selected.Trigger.Name or ''
+              end,
+        set = function(Info, Value)
+                Selected.Trigger.Name = Value
+
+                -- Relist to reflect changes to name
+                EditTriggerListOptions(BarType, UBF, BBar, 'list', TLA, TOA, Triggers, Selected)
               end,
       }
 
-      TOA.HideTabs = {
-        type = 'toggle',
-        order = 0.4,
-        name = 'Hide Tabs',
-        width = 'half',
-        desc = 'If checked, empty tabs will be hidden',
-        set = function(Info, Value)
-                Triggers.HideTabs = Value
-              end,
-        get = function()
-                return Triggers.HideTabs
-              end,
+      -- Trigger list
+      TOA.List = {
+        type = 'group',
+        name = 'List',
+        order = 10,
+        args = {},
       }
+      TLA = TOA.List.args
+
+      if #Triggers == 0 then
+        Action = 'add'
+      end
+
+      EditTriggerListOptions(BarType, UBF, BBar, Action, TLA, TOA, Triggers, Selected)
 
       -- Create tabs
-      for GroupNumber = 1, #Groups do
-        local GroupName = format('Group%s', GroupNumber)
-        local Group = Groups[GroupNumber]
-
-        GroupNames[GroupNumber] = GroupName
-        TOA[GroupName] = {
-          type = 'group',
-          name = function()
-                   -- color tabs that have at least one trigger.
-                   if Group.TriggersInGroup > 0 and #Groups > 1 then
-                     return format('%s *', Group.Name)
-                   else
-                     return Group.Name
-                   end
-                 end,
-          order = GroupNumber,
-          hidden = function()
-                     local AllEmpty = true
-
-                     for Index = 1, #Groups do
-                       if Groups[Index].TriggersInGroup > 0 then
-                         AllEmpty = false
-                         break
-                       end
-                     end
-
-                     if Group.TriggersInGroup == 0 and not AllEmpty then
-                       return Triggers.HideTabs
-                     else
-                       return false
-                     end
-                   end,
-          args = {}
-        }
-
-        -- Initialize each group.
-        AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, Triggers, GroupNumber)
-      end
-
-      -- Add options for each trigger.
-      for Index = 1, #Triggers do
-        local Trigger = Triggers[Index]
-
-        AddTriggerOption(UBF, BBar, TOA, GroupNames, ClipBoard, Groups, Triggers, Trigger)
+      for TriggerIndex = 1, #Triggers do
+        CreateTriggerTabOptions(BarType, UBF, BBar, TOA, Triggers[TriggerIndex], Selected)
       end
     end
   end)
@@ -4774,7 +4932,8 @@ local function CreateStatusOptions(BarType, Order, Name)
 --  dialogInline = true,
     disabled = function()
                  return Main.UnitBars.Show or Main.UnitBars.Testing
-               end,    order = Order,
+               end,
+    order = Order,
     get = function(Info)
             return UBF.UnitBar.Status[Info[#Info]]
           end,
@@ -4845,9 +5004,6 @@ end
 -- Name          Name of the options.
 -------------------------------------------------------------------------------
 local function CreateShowOptions(BarType, Order, Name)
-  local UBF = UnitBarsF[BarType]
-  local UBD = DUB[BarType]
-
   local ShowOptions = {
     type = 'group',
     name = Name,
@@ -4862,9 +5018,17 @@ local function CreateShowOptions(BarType, Order, Name)
                    return not Main.UnitBars.Show and not Main.UnitBars.Testing
                  end,
       },
-      StanceOptions = CreateStanceOptions(BarType, 10, 'ClassStances'), -- 'ClassStances is the table path
+      StanceGroup = {
+        type = 'group',
+        name = 'Stances',
+        order = 10,
+        dialogInline = false,
+        args = {
+          StanceOptions = CreateStanceOptions(BarType, 10, 'ClassStances'), -- 'ClassStances is the table path
+        },
+      },
       StatusOptions = CreateStatusOptions(BarType, 20, 'Status'),
-    }
+    },
   }
 
   return ShowOptions
@@ -5369,6 +5533,7 @@ local function CreateLayoutOptions(BarType, Order, Name)
       desc = 'Allows you to swap one bar object with another by dragging it',
     }
   end
+
   if UBD.Layout.Float ~= nil then
     Spacer = true
     ObjectsFlag = true
@@ -5524,7 +5689,6 @@ local function CreateLayoutOptions(BarType, Order, Name)
   end
   if Spacer then
     ObjectsArgs.Spacer60 = CreateSpacer(60)
-    Spacer = false
   end
 
   -- Float options
@@ -5651,20 +5815,16 @@ local function CreateResetOptions(BarType, Order, Name)
     Layout                    = { Name = 'Layout',               Order =   6, Width = 'half',   TablePaths = {'Layout', 'BoxLocations', 'BoxOrder'} },
     Region                    = { Name = 'Region',               Order =   7, Width = 'half',   TablePaths = {'Region'} },
     Text                      = { Name = 'Text',                 Order =   8, Width = 'half',   TablePaths = {'Text'} },
-    TextPause                 = { Name = 'Text (pause)',         Order =   9, Width = 'normal', BarType = 'StaggerBar',  TablePaths = {'Text2'} },
-    TextCounter               = { Name = 'Text (counter)',       Order =  10, Width = 'normal', BarType = 'AltPowerBar', TablePaths = {'Text2'} },
-    Triggers                  = { Name = 'Triggers',             Order =  11, Width = 'half',   TablePaths = {'Triggers'} },
-    Attributes                = { Name = 'Attributes',           Order =  12, Width = 'normal', TablePaths = {'Attributes'} },
+    Triggers                  = { Name = 'Triggers',             Order =   9, Width = 'half',   TablePaths = {'Triggers'} },
+    Attributes                = { Name = 'Attributes',           Order =  10, Width = 'normal', TablePaths = {'Attributes'} },
     --------------------------
     HEADER2 = { Order = 100, Name = 'Background' },
 
     BG                        = { Name = 'Background',           Order = 101, Width = 'wide',   TablePaths = {'Background'} },
-    BGCombo                   = { Name = 'Combo',                Order = 102, Width = 'wide',   TablePaths = {'BackgroundCombo'} },
     --------------------------
     HEADER3 = { Order = 200, Name = 'Bar' },
 
     Bar                       = { Name = 'Bar',                  Order = 201, Width = 'wide',   TablePaths = {'Bar'} },
-    BarCombo                  = { Name = 'Combo',                Order = 202, Width = 'wide',   TablePaths = {'BarCombo'} },
     --------------------------
     HEADER1 = { Order = 300, Name = 'Region Color', CheckTable = 'Region.Color' },
 
@@ -5674,17 +5834,12 @@ local function CreateResetOptions(BarType, Order, Name)
     HEADER5 = { Order = 400, Name = 'Background Color' },
 
     BGColor                   = { Name = 'Background Color',     Order = 401, Width = 'wide',   TablePaths = {'Background.Color'} },
-    BGBorderColor             = { Name = 'Border Color',         Order = 401, Width = 'wide',   TablePaths = {'Background.BorderColor'} },
-
-    BGColorCombo              = { Name = 'Combo',                Order = 402, Width = 'wide',   TablePaths = {'BackgroundCombo.Color'} },
-    BGBorderColorCombo        = { Name = 'Combo Border',         Order = 404, Width = 'wide',   TablePaths = {'BackgroundCombo.BorderColor'} },
+    BGBorderColor             = { Name = 'Border Color',         Order = 402, Width = 'wide',   TablePaths = {'Background.BorderColor'} },
     --------------------------
     HEADER4 = { Order = 500, Name = 'Bar Color' },
 
     BarColor                  = { Name = 'Bar Color',            Order = 501, Width = 'wide',   TablePaths = {'Bar.Color'} },
-    BarColorPredictedCost     = { Name = 'Predicted Cost',       Order = 503, Width = 'wide',   TablePaths = {'Bar.PredictedCostColor'} },
-
-    BarColorCombo             = { Name = 'Combo',                Order = 505, Width = 'wide',   TablePaths = {'BarCombo.Color'} },
+    BarColorPredictedCost     = { Name = 'Predicted Cost',       Order = 502, Width = 'wide',   TablePaths = {'Bar.PredictedCostColor'} },
   }
 
   Options:DoFunction(BarType, 'ResetOptions', function()
@@ -5697,7 +5852,7 @@ local function CreateResetOptions(BarType, Order, Name)
       end    end
     -- Delete entries that don't exist
     for Name in pairs(Reset) do
-      if strfind(Name, 'HEADER') ~= nil or Name ~= 'Minimize' and TableData[Name] == nil then
+      if strfind(Name, 'HEADER') ~= nil or TableData[Name] == nil then
         Reset[Name] = nil
       end
     end
@@ -5793,9 +5948,6 @@ local function CreateResetOptions(BarType, Order, Name)
         type = 'description',
         name = 'Check off what to reset',
         order = 11,
-        hidden = function()
-                   return Main.UnitBars.Reset.Minimize
-                 end
       },
       Spacer1000 = CreateSpacer(1000),
     },
@@ -5815,7 +5967,7 @@ local function CreateResetOptions(BarType, Order, Name)
           name = Table.Name,
           order = 1000 + Table.Order,
           hidden = function()
-                     return Main.UnitBars.Reset.Minimize or Name ~= 'All' and Main.UnitBars.Reset.All
+                     return Name ~= 'All' and Main.UnitBars.Reset.All
                    end,
         }
       end
@@ -5966,41 +6118,36 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
   MenuButtons = MenuButtons or { -- Include means that these menu items will be usable during copy paste.
     ['Main'] = { Order = 1,
       { Name = 'All',                  All = false, TablePath = '',                                   },  -- 1
-      { Name = 'Stance',               All = true,  TablePath = 'ClassStances',                       },  -- 2
-      { Name = 'Status',               All = true,  TablePath = 'Status',                             },  -- 3
-      { Name = 'Attributes',           All = true,  TablePath = 'Attributes',                         },  -- 4
-      { Name = 'Layout',               All = true,  TablePath = 'Layout',                             },  -- 5
-      { Name = 'Region',               All = true,  TablePath = 'Region',                             }}, -- 6
+      { Name = 'Stance',               All = true,  TablePath = 'ClassStances',                       },
+      { Name = 'Status',               All = true,  TablePath = 'Status',                             },
+      { Name = 'Attributes',           All = true,  TablePath = 'Attributes',                         },
+      { Name = 'Layout',               All = true,  TablePath = 'Layout',                             },
+      { Name = 'Region',               All = true,  TablePath = 'Region',                             }},
 
     ['Background'] = { Order = 2,
-      { Name = 'Background',           All = true,  TablePath = 'Background',                         },  -- 1
-      { Name = 'Combo',                All = false, TablePath = 'BackgroundCombo',                    }}, -- 2
+      { Name = 'Background',           All = true,  TablePath = 'Background',                         }},  -- 1
 
     ['Bar'] = { Order = 3,
-      { Name = 'Bar',                  All = true,  TablePath = 'Bar',                                },  -- 1
-      { Name = 'Combo',                All = false, TablePath = 'BarCombo',                           }}, -- 2
+      { Name = 'Bar',                  All = true,  TablePath = 'Bar',                                }},  -- 1
 
     ['Region Color'] = { Order = 4, Include = { ['Region Color'] = 1, ['Background Color'] = 1, ['Bar Color'] = 1 },
       { Name = 'Background',           All = true,  TablePath = 'Region.Color',                       },  -- 1
-      { Name = 'Border',               All = true,  TablePath = 'Region.BorderColor',                 }}, -- 2
+      { Name = 'Border',               All = true,  TablePath = 'Region.BorderColor',                 }},
 
     ['Background Color'] = { Order = 5, Include = { ['Region Color'] = 1, ['Background Color'] = 1, ['Bar Color'] = 1 },
       { Name = 'Background Color',     All = true,  TablePath = 'Background.Color',                   },  -- 1
-      { Name = 'Border Color',         All = true,  TablePath = 'Background.BorderColor',             },  -- 2
-      { Name = 'Combo',                All = false, TablePath = 'BackgroundCombo.Color',              },  -- 3
-      { Name = 'Combo Border',         All = false, TablePath = 'BackgroundCombo.BorderColor',        }}, -- 4
+      { Name = 'Border Color',         All = true,  TablePath = 'Background.BorderColor',             }},
 
     ['Bar Color'] = { Order = 6, Include = { ['Region Color'] = 1, ['Background Color'] = 1, ['Bar Color'] = 1 },
       { Name = 'Bar Color',            All = true,  TablePath = 'Bar.Color',                          },  -- 1
-      { Name = 'Predicted Cost',       All = true,  TablePath = 'Bar.PredictedCostColor',             },  -- 2
-      { Name = 'Combo',                All = false, TablePath = 'BarCombo.Color',                     }}, -- 3
+      { Name = 'Predicted Cost',       All = true,  TablePath = 'Bar.PredictedCostColor',             }},
 
     ['Text'] = { Order = 7, Include = { ['Text'] = 1, ['Text (pause)'] = 1 },
       { Name  = 'All Text',            All = true,  TablePath = 'Text',                               },  -- 1
-      { Name  = 'Text 1',              All = false, TablePath = 'Text.1',                             },  -- 2
-      { Name  = 'Text 2',              All = false, TablePath = 'Text.2',                             },  -- 3
-      { Name  = 'Text 3',              All = false, TablePath = 'Text.3',                             },  -- 4
-      { Name  = 'Text 4',              All = false, TablePath = 'Text.4',                             }}, -- 5
+      { Name  = 'Text 1',              All = false, TablePath = 'Text.1',                             },
+      { Name  = 'Text 2',              All = false, TablePath = 'Text.2',                             },
+      { Name  = 'Text 3',              All = false, TablePath = 'Text.3',                             },
+      { Name  = 'Text 4',              All = false, TablePath = 'Text.4',                             }},
 
     ['Triggers'] = { Order = 9, Width = 'half',
       { Name = 'Triggers',             All = true,  TablePath = 'Triggers',                           }}, -- 1
@@ -6049,10 +6196,6 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
                  BBar:AppendTriggers(ClipBoard.BarType)
                else
                  -- Paste
-                 local SourceBarType = ClipBoard.BarType
-                 local SourceTablePath = ClipBoard.TablePath
-                 local SourceTable = Main:GetUB(BarType, SourceTablePath)
-
                  if ClipBoard.AllButton then
                    for SelectIndex, SelectButton in pairs(MenuButtons) do
                      for _, SB in ipairs(SelectButton) do
@@ -6178,13 +6321,13 @@ local function CreateCopyPasteOptions(BarType, Order, Name)
             hidden = function()
                        return Text and Main:GetUB(BarType, TablePath) == nil or ClipBoard ~= nil
                      end,
-            arg = {Hide                 = SelectButton.Hide,
-                   TablePath            = TablePath,
-                   MenuButtonName       = MenuButtonName,
-                   SelectButtonName     = SelectButtonName,
-                   AllButton            = AllButton,
-                   AllButtonText        = AllButtonText,
-                   Include              = MenuButton.Include },
+            arg = {Hide             = SelectButton.Hide,
+                   TablePath        = TablePath,
+                   MenuButtonName   = MenuButtonName,
+                   SelectButtonName = SelectButtonName,
+                   AllButton        = AllButton,
+                   AllButtonText    = AllButtonText,
+                   Include          = MenuButton.Include },
           }
 
           -- Create paste button
@@ -6279,7 +6422,6 @@ local function CreateUnitBarOptions(BarGroups, BarType, Order, Name, Desc)
   AddTabGroup(BarType, 4, 'Reset',          false, CreateResetOptions(BarType, 4, 'Reset') )
   AddTabGroup(BarType, 5, 'Copy and Paste', false, CreateCopyPasteOptions(BarType, 5, 'Copy and Paste') )
 
-
   -- Add layout options if they exist.
   if UBD.Layout then
     AddOptionsBranch(BarGroups, BarType, 'Layout', CreateLayoutOptions(BarType, 1000, 'Layout') )
@@ -6296,7 +6438,7 @@ local function CreateUnitBarOptions(BarGroups, BarType, Order, Name, Desc)
 
   -- Add tab background options
   -- Combo bar
-  local BackgroundOptions = nil
+  local BackgroundOptions
 
   if BarType == 'ComboBar' then
     BackgroundOptions = CreateBackdropOptions(BarType, 'Background', 1002, 'Background')
@@ -6314,7 +6456,7 @@ local function CreateUnitBarOptions(BarGroups, BarType, Order, Name, Desc)
 
   -- add tab bar options
   -- Combo bar
-  local BarOptions = nil
+  local BarOptions
 
   if BarType == 'ComboBar' then
     BarOptions = CreateBarOptions(BarType, 'Bar', 1003, 'Bar')
@@ -6332,7 +6474,7 @@ local function CreateUnitBarOptions(BarGroups, BarType, Order, Name, Desc)
 
   -- Add text options
   if UBD.Text ~= nil then
-    local TextOptions = nil
+    local TextOptions
 
     TextOptions = CreateTextOptions(BarType, 'Text', 1004, 'Text')
     TextOptions.hidden = function()
@@ -6364,7 +6506,6 @@ end
 function GUB.Options:AddRemoveBarGroups()
   local BarGroups = MainOptions.args.UnitBars.args
   local Order = 0
-  local UnitBars = Main.UnitBars
 
   -- Add or remove multiple bargroups.
   for BarType, UBF in pairs(Main.UnitBarsF) do
@@ -6474,8 +6615,8 @@ local function AuraSort(a, b)
   return a.Name < b.Name
 end
 
-local function RefreshAuraList(AG, Unit, TrackedAurasList)
-  if TrackedAurasList and Main.UnitBars.AuraListOn then
+local function RefreshAuraList(AG, Unit, AuraTrackersData)
+  if Main.UnitBars.AuraListOn then
     AG.args = {}
 
     local AGA = AG.args
@@ -6484,11 +6625,13 @@ local function RefreshAuraList(AG, Unit, TrackedAurasList)
     local AuraList = {}
 
     -- Build aura list
-    local Auras = TrackedAurasList[Unit]
+    local Auras = AuraTrackersData[Unit]
 
     if Auras then
       for SpellID, Aura in pairs(Auras) do
-        AuraList[SpellID] = Aura
+        if type(SpellID) == 'number' then
+          AuraList[SpellID] = Aura
+        end
       end
     end
 
@@ -6527,49 +6670,45 @@ local function DeleteAuraTabs(ALA)
 end
 
 local function UpdateAuraTabs(ALA, Order)
-  local TrackedAurasList = Main.TrackedAurasList
+  local AuraTrackersData = Main.AuraTrackersData
   local OrderNumber = Order
 
-  if TrackedAurasList then
-    for Unit in pairs(TrackedAurasList) do
-      local Key = 'AuraGroup_' .. Unit
+  for Unit in pairs(AuraTrackersData) do
+    local Key = 'AuraGroup_' .. Unit
 
-      if ALA[Key] == nil then
-        ALA[Key] = {
-          type = 'group',
-          order = function()
-                    if Unit == 'All' then
-                      return OrderNumber - 0.5
-                    else
-                      return Order
-                    end
-                  end,
-          name = Unit,
-          args = {},
-        }
-      end
-      Order = Order + 1
+    if ALA[Key] == nil then
+      ALA[Key] = {
+        type = 'group',
+        order = function()
+                  if Unit == 'All' then
+                    return OrderNumber - 0.5
+                  else
+                    return Order
+                  end
+                end,
+        name = Unit,
+        args = {},
+      }
     end
+    Order = Order + 1
+  end
 
-    -- Remove units no longer in use.
-    for Key in pairs(ALA) do
-      local _, Unit = strsplit('_', Key)
+  -- Remove units no longer in use.
+  for Key in pairs(ALA) do
+    local _, Unit = strsplit('_', Key)
 
-      if Unit then
-        if TrackedAurasList[Unit] == nil then
-          ALA[Key] = nil
-        else
-          RefreshAuraList(ALA[Key], Unit, TrackedAurasList)
-        end
+    if Unit then
+      if AuraTrackersData[Unit] == nil then
+        ALA[Key] = nil
+      else
+        RefreshAuraList(ALA[Key], Unit, AuraTrackersData)
       end
     end
-  else
-    DeleteAuraTabs(ALA)
   end
 end
 
 local function CreateAuraOptions(Order, Name, Desc)
-  local ALA = nil
+  local ALA
 
   -- This is needed so the aura list is always updated.
   function GUB.Options:UpdateAuras()
@@ -6600,16 +6739,22 @@ local function CreateAuraOptions(Order, Name, Desc)
             Main.UnitBars[KeyName] = Value
             Main:UnitBarsSetAllOptions()
             GUB:UnitBarsUpdateStatus()
+
+            -- Need this here after updaing auras in UnitBarsSetAllOptions
+            if KeyName == 'AuraListUnits' then
+              Options:UpdateAuras()
+              Options:RefreshMainOptions()
+            end
           end,
     args = {
       Description = {
         type = 'description',
-        name = 'Lists all units and auras that the mod is using.  Can add additional units in the box below.  All tab shows all units',
+        name = 'Lists all units and auras that the mod is using.  Can add additional units in the box below.  The All tab shows all units',
         order = 1,
       },
       AuraListUnits = {
         type = 'input',
-        name = 'Units',
+        name = 'Units  ( separated by space )',
         order = 2,
         desc = 'Enter the units to track auras. Each unit can be seperated by a space',
         disabled = function()
@@ -6934,7 +7079,7 @@ local function CreateCombatColorOptions(Order, Name)
     get = function(Info)
             local KeyName = Info[#Info]
             local UB = Main.UnitBars
-            local c = nil
+            local c
 
             if strfind(KeyName, 'Player') then
               c = UB.PlayerCombatColor[strsub(KeyName, 7)]
@@ -6950,7 +7095,7 @@ local function CreateCombatColorOptions(Order, Name)
     set = function(Info, r, g, b, a)
             local KeyName = Info[#Info]
             local UB = Main.UnitBars
-            local c = nil
+            local c
 
             if strfind(KeyName, 'Player') then
               c = UB.PlayerCombatColor[strsub(KeyName, 7)]
@@ -7015,7 +7160,6 @@ local function CreateCombatColorOptions(Order, Name)
   }
 
   local FCOA = CombatColorOptions.args
-  local Index = nil
 
   -- Create NPC combat color options
   for CombatColor, Color in pairs(DUB.CombatColor) do
@@ -7033,8 +7177,8 @@ local function CreateCombatColorOptions(Order, Name)
   -- Create combat color options
   for CombatColor, Color in pairs(DUB.PlayerCombatColor) do
     local Order = ConvertCombatColor[CombatColor] + 50
-    local Desc = nil
-    local Disabled = nil
+    local Desc
+    local Disabled
 
     if CombatColor == 'Hostile' then
       Desc = 'Target can attack you'
@@ -7567,9 +7711,9 @@ local function CreateMainOptions()
     order = 101,
     childGroups = 'tab',
     args = {
-      HelpText = CreateHelpOptions(1, format('|cffffd200%s   version %.2f|r', AddonName, GD.Version / 100), GD.HelpText),
-      LinksText = CreateHelpOptions(2, 'Links', GD.LinksText),
-      Changes = CreateHelpOptions(3, 'Changes', GD.ChangesText),
+      HelpText = CreateHelpOptions(1, format('|cffffd200%s   version %.2f|r', AddonName, DefaultUB.Version / 100), DefaultUB.HelpText),
+      LinksText = CreateHelpOptions(2, 'Links', DefaultUB.LinksText),
+      Changes = CreateHelpOptions(3, 'Changes', DefaultUB.ChangesText),
     },
   }
 
@@ -7619,13 +7763,13 @@ end
 -- Creates align and swap options for unitbars.
 -------------------------------------------------------------------------------
 local function CreateAlignSwapOptions()
-  local AlignSwapOptions = nil
+  local AlignSwapOptions
 
   local function SetSize()
     for KeyName in pairs(AlignSwapOptions.args) do
       local SliderArgs = AlignSwapOptions.args[KeyName]
-      local Min = nil
-      local Max = nil
+      local Min
+      local Max
 
       if strfind(KeyName, 'Padding') then
         Min = o.AlignSwapPaddingMin
@@ -7820,7 +7964,7 @@ function GUB.Options:OpenAlignSwapOptions(Anchor)
 
     Options.AlignSwapOptionsOpen = true
   else
-    print(GD.InCombatOptionsMessage)
+    print(DefaultUB.InCombatOptionsMessage)
   end
 end
 
@@ -7849,7 +7993,7 @@ function GUB.Options:OnInitialize()
 
   -- Add the options panels to blizz options.
   --MainOptionsFrame = LibStub('AceConfigDialog-3.0'):AddToBlizOptions(AddonMainOptions, AddonName)
-  local OptionsToGUBFrame = AceConfigDialog:AddToBlizOptions(AddonOptionsToGUB, AddonName)
+  --local OptionsToGUBFrame = AceConfigDialog:AddToBlizOptions(AddonOptionsToGUB, AddonName)
 
   -- Add the Profiles UI as a subcategory below the main options.
   --ProfilesOptionsFrame = LibStub('AceConfigDialog-3.0'):AddToBlizOptions(AddonProfileName, 'Profiles', AddonName)

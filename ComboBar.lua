@@ -10,22 +10,15 @@ local MyAddon, GUB = ...
 
 local Main = GUB.Main
 local Bar = GUB.Bar
-local TT = GUB.DefaultUB.TriggerTypes
+local OT = Bar.TriggerObjectTypes
 
 local ConvertPowerType = Main.ConvertPowerType
 
 -- localize some globals.
 local _, _G =
       _, _G
-local abs, mod, max, floor, ceil, mrad,     mcos,     msin,     sqrt,      mhuge =
-      abs, mod, max, floor, ceil, math.rad, math.cos, math.sin, math.sqrt, math.huge
-local strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch =
-      strfind, strmatch, strsplit, strsub, strtrim, strupper, strlower, format, gsub, gmatch
-local GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort =
-      GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, tinsert, type, unpack, sort
-
-local UnitPower, UnitPowerMax, GetComboPoints =
-      UnitPower, UnitPowerMax, GetComboPoints
+local ipairs = ipairs
+local GetComboPoints = GetComboPoints
 
 -------------------------------------------------------------------------------
 -- Locals
@@ -37,7 +30,6 @@ local UnitPower, UnitPowerMax, GetComboPoints =
 local MaxComboPoints = 5
 local Display = false
 local Update = false
-local NamePrefix = 'Combo '
 
 -- Powertype constants
 local PowerPoint = ConvertPowerType['COMBO_POINTS']
@@ -53,55 +45,40 @@ local ComboSBar = 10
 local ComboDarkTexture = 11
 local ComboLightTexture = 12
 
-local RegionGroup = 7
-
-local GF = { -- Get function data
-  TT.TypeID_ClassColor,  TT.Type_ClassColor,
-  TT.TypeID_PowerColor,  TT.Type_PowerColor,
-  TT.TypeID_CombatColor, TT.Type_CombatColor,
-  TT.TypeID_TaggedColor, TT.Type_TaggedColor,
+local ObjectsInfo = { -- type, id, additional menu text, textures
+  { OT.BackgroundBorder,      1, '', BoxMode     },
+  { OT.BackgroundBorderColor, 2, '', BoxMode     },
+  { OT.BackgroundBackground,  3, '', BoxMode     },
+  { OT.BackgroundColor,       4, '', BoxMode     },
+  { OT.BarTexture,            5, '', ComboSBar   },
+  { OT.BarColor,              6, '', ComboSBar   },
+  { OT.BarOffset,             7, '', BoxMode     },
+  { OT.TextureScale,          8, '', AllTextures },
+  { OT.Sound,                 9, ''              }
 }
 
-local TD = { -- Trigger data
-  { TT.TypeID_BackgroundBorder,      TT.Type_BackgroundBorder,      BoxMode },
-  { TT.TypeID_BackgroundBorderColor, TT.Type_BackgroundBorderColor, BoxMode,
-    GF = GF },
-  { TT.TypeID_BackgroundBackground,  TT.Type_BackgroundBackground,  BoxMode },
-  { TT.TypeID_BackgroundColor,       TT.Type_BackgroundColor,       BoxMode,
-    GF = GF },
-  { TT.TypeID_BarTexture,            TT.Type_BarTexture,            ComboSBar },
-  { TT.TypeID_BarColor,              TT.Type_BarColor,              ComboSBar,
-    GF = GF },
-  { TT.TypeID_BarOffset,             TT.Type_BarOffset,             BoxMode },
-  { TT.TypeID_TextureScale,          TT.Type_TextureScale,          AllTextures },
-  { TT.TypeID_Sound,                 TT.Type_Sound }
+local ObjectsInfoRegion = { -- type, id, additional text
+  { OT.RegionBorder,          1, '' },
+  { OT.RegionBorderColor,     2, '' },
+  { OT.RegionBackground,      3, '' },
+  { OT.RegionBackgroundColor, 4, '' },
+  { OT.Sound,                 5, '' },
 }
 
-local TDregion = { -- Trigger data for region
-  { TT.TypeID_RegionBorder,          TT.Type_RegionBorder },
-  { TT.TypeID_RegionBorderColor,     TT.Type_RegionBorderColor,
-    GF = GF },
-  { TT.TypeID_RegionBackground,      TT.Type_RegionBackground },
-  { TT.TypeID_RegionBackgroundColor, TT.Type_RegionBackgroundColor,
-    GF = GF },
-  { TT.TypeID_Sound,                 TT.Type_Sound }
+local GroupsInfo = { -- BoxNumber, Name, ValueTypes
+  ValueNames = {
+    'whole', 'Combo Points',
+  },
+  {1,    'Combo Point 1', ObjectsInfo},       -- 1
+  {2,    'Combo Point 2', ObjectsInfo},       -- 2
+  {3,    'Combo Point 3', ObjectsInfo},       -- 3
+  {4,    'Combo Point 4', ObjectsInfo},       -- 4
+  {5,    'Combo Point 5', ObjectsInfo},       -- 5
+  {'a',  'All',           ObjectsInfo},       -- 6
+  {'aa', 'All Active',    ObjectsInfo},       -- 7
+  {'ai', 'All Inactive',  ObjectsInfo},       -- 8
+  {'r',  'Region',        ObjectsInfoRegion}, -- 9
 }
-
-local VTs = {'whole', 'Combo Points',
-             'auras', 'Auras'         }
-
-local Groups = { -- BoxNumber, Name, ValueTypes,
-  {1,   'Point 1',  VTs, TD}, -- 1
-  {2,   'Point 2',  VTs, TD}, -- 2
-  {3,   'Point 3',  VTs, TD}, -- 3
-  {4,   'Point 4',  VTs, TD}, -- 4
-  {5,   'Point 5',  VTs, TD}, -- 5
-  {'a', 'All', {'whole', 'Combo Points',
-                'state', 'Active',
-                'auras', 'Auras'         }, TD},   -- 6
-  {'r', 'Region',   VTs, TDregion},  -- 7
-}
-
 
 local ComboData = {
   TextureWidth = 21 + 8, TextureHeight = 21 + 8,
@@ -143,7 +120,7 @@ function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerToken)
   -------------------
   -- Check Power Type
   -------------------
-  local PowerType = nil
+  local PowerType
   if PowerToken then
     PowerType = ConvertPowerType[PowerToken]
   else
@@ -194,13 +171,12 @@ function Main.UnitBarsF.ComboBar:Update(Event, Unit, PowerToken)
     BBar:ChangeTexture(ChangePoints, 'SetHiddenTexture', ComboIndex, ComboIndex > ComboPoints)
 
     if EnableTriggers then
-      BBar:SetTriggers(ComboIndex, 'combo points', ComboPoints)
-      BBar:SetTriggers(ComboIndex, 'active', ComboIndex <= ComboPoints)
+      BBar:SetTriggersActive(ComboIndex, ComboIndex <= ComboPoints)
     end
   end
 
   if EnableTriggers then
-    BBar:SetTriggers(RegionGroup, 'combo points', ComboPoints)
+    BBar:SetTriggers('Combo Points', ComboPoints)
     BBar:DoTriggers()
   end
 end
@@ -222,7 +198,7 @@ function Main.UnitBarsF.ComboBar:SetAttr(TableName, KeyName)
   if not BBar:OptionsSet() then
     BBar:SO('Attributes', '_', function() Main:UnitBarSetAttr(self) end)
 
-    BBar:SO('Layout', 'EnableTriggers',   function(v) BBar:EnableTriggers(v, Groups) Update = true end)
+    BBar:SO('Layout', 'EnableTriggers',   function(v) BBar:EnableTriggers(v, GroupsInfo) Update = true end)
     BBar:SO('Layout', 'BoxMode',          function(v)
       if v then
         -- Box mode
@@ -318,7 +294,7 @@ function GUB.ComboBar:CreateBar(UnitBarF, UB, ScaleFrame)
   local BBar = Bar:CreateBar(UnitBarF, ScaleFrame, MaxComboPoints)
 
   local Names = {}
-  local Name = nil
+  local Name
 
   -- Create box mode.
   BBar:CreateTextureFrame(0, BoxMode, 1)
@@ -336,7 +312,8 @@ function GUB.ComboBar:CreateBar(UnitBarF, UB, ScaleFrame)
       BBar:SetAtlasTexture(ComboIndex, TextureNumber, CD.AtlasName)
       BBar:SetSizeTexture(ComboIndex, TextureNumber, CD.Width, CD.Height)
     end
-    Name = NamePrefix .. Groups[ComboIndex][2]
+    Name = GroupsInfo[ComboIndex][2]
+
     BBar:SetTooltipBox(ComboIndex, Name)
     Names[ComboIndex] = Name
   end
