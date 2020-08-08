@@ -1528,7 +1528,7 @@ local function BoxInfo(Frame)
     local BarDB = Frame.BarDB
     local UB = BarDB.Anchor.UnitBar
     local AnchorPoint = AnchorPointWord[UB.Attributes.AnchorPoint]
-    local BarX, BarY = floor(UB.x + 0.5), floor(UB.y + 0.5)
+    local BarX, BarY = floor(UB._x + 0.5), floor(UB._y + 0.5)
 
     -- Is this a boxframe?
     if Frame.BF then
@@ -7647,7 +7647,7 @@ function BarDB:CheckTriggers(Action)
                                           self:CheckTriggersAuras()
                                           self:DoTriggers()
                                         end)
-    Main:SetAuraTracker(UnitBarF, 'units', Main:StringSplit(' ', Units))
+    Main:SetAuraTracker(UnitBarF, 'units', Main:SplitString(' ', Units))
   else
     Main:SetAuraTracker(UnitBarF, 'off')
   end
@@ -7824,21 +7824,20 @@ end
 --
 -- Adds triggers from another bar without overwriting the existing ones.
 --
--- SourceBarType      Bar the source triggers are coming from.
+-- Source      string: Then this a bartype otherwise this contains the table to append
 -------------------------------------------------------------------------------
-function BarDB:AppendTriggers(SourceBarType)
-  local SourceTriggers = Main.UnitBars[SourceBarType].Triggers
-  local SourceBarName = DUB[SourceBarType].Name
+function BarDB:AppendTriggers(SourceTriggers)
+  if type(SourceTriggers) == 'string' then
+    SourceTriggers = Main.UnitBars[SourceTriggers].Triggers
+  end
   local Triggers = self.UnitBarF.UnitBar.Triggers
 
   for TriggerIndex = 1, #SourceTriggers do
     local Trigger = {}
     local SourceTrigger = SourceTriggers[TriggerIndex]
-    local Name = SourceTrigger.Name
 
-    -- Copy trigger and modify name
+    -- Copy trigger
     Main:CopyTableValues(SourceTrigger, Trigger, true)
-    Trigger.Name = format('[ %s ] %s', SourceBarName, Name)
 
     -- Append trigger
     Triggers[#Triggers + 1] = Trigger

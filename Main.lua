@@ -31,16 +31,18 @@ GUB.Options = Options
 LibStub('AceAddon-3.0'):NewAddon(GUB, MyAddon, 'AceConsole-3.0', 'AceEvent-3.0')
 
 local LSM = LibStub('LibSharedMedia-3.0')
+local LS = LibStub('LibSerialize')
+local LD = LibStub('LibDeflate')
 
 -- localize some globals.
-local _, _G =
-      _, _G
+local _, _G, print =
+      _, _G, print
 local abs, floor, sqrt      =
       abs, floor, math.sqrt
 local strfind, strsplit, strsub, strtrim, strupper, format =
       strfind, strsplit, strsub, strtrim, strupper, format
-local GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, type =
-      GetTime, ipairs, pairs, next, pcall, print, select, tonumber, tostring, tremove, type
+local GetTime, ipairs, pairs, next, pcall, select, tonumber, tostring, tremove, type =
+      GetTime, ipairs, pairs, next, pcall, select, tonumber, tostring, tremove, type
 local CreateFrame, IsModifierKeyDown, PetHasActionBar, PlaySound, message, HasPetUI, GameTooltip, UIParent =
       CreateFrame, IsModifierKeyDown, PetHasActionBar, PlaySound, message, HasPetUI, GameTooltip, UIParent
 local GetShapeshiftFormID, GetShapeshiftFormInfo =
@@ -526,7 +528,7 @@ Main.TalentTrackersData = TalentTrackersData
 do
   local Index = 0
   for BarType, UB in pairs(DUB) do
-    if type(UB) == 'table' and UB.Name then
+    if type(UB) == 'table' and UB._Name then
       Index = Index + 1
       local UBFTable = CreateFrame('Frame')
 
@@ -1118,7 +1120,7 @@ local function Contains(Table, Value)
 end
 
 -------------------------------------------------------------------------------
--- StringSplit
+-- SplitString
 --
 -- Splits and trims a string and returns it as paramaters. Removes any extra spaces.
 --
@@ -1146,10 +1148,6 @@ local function SplitString(Sep, St)
   elseif Part ~= '' then
     return Part
   end
-end
-
-function GUB.Main:StringSplit(Sep, St)
-  return SplitString(Sep, St)
 end
 
 -------------------------------------------------------------------------------
@@ -1222,6 +1220,10 @@ local function ConvertUnitBarData(Ver)
   local ConvertUBData3 = {
     {Action = 'custom',    Source = '',                                 '=Triggers'},
   }
+  local ConvertUBData4 = {
+    {Action = 'move',                                                   '=Name:_Name', '=OptionOrder:_OptionOrder', '=OptionText:_OptionText',
+                                                                        '=UnitType:_UnitType', '=Enabled:_Enabled', '=x:_x', '=y:_y'},
+  }
 
   if Ver == 1 then -- First time conversion
     ConvertUBData = ConvertUBData1
@@ -1229,6 +1231,8 @@ local function ConvertUnitBarData(Ver)
     ConvertUBData = ConvertUBData2
   elseif Ver == 3 then
     ConvertUBData = ConvertUBData3
+  elseif Ver == 4 then
+    ConvertUBData = ConvertUBData4
   end
 
   for BarType, UBF in pairs(UnitBarsF) do
@@ -1437,13 +1441,13 @@ function GUB.Main:SetAnchorPoint(Anchor, x, y)
     y = y + (Anchor._Height * Scale - 1) * AnchorPos.y
 
   elseif x == 'UB' then
-    x, y = UB.x, UB.y
+    x, y = UB._x, UB._y
   end
 
   Anchor:ClearAllPoints()
   Anchor:SetPoint(AnchorPoint, x, y)
 
-  UB.x, UB.y = x, y
+  UB._x, UB._y = x, y
 end
 
 -------------------------------------------------------------------------------
@@ -1516,14 +1520,14 @@ function GUB.Main:SetAnchorSize(Anchor, Width, Height, OffsetX, OffsetY, Float)
     -- Get the new x, y location for the current AnchorPoint
     -- Offsets have to be scaled
     -- (width and height minus 1) is to account for 1 pixel bar shift
-    UB.x = x + OffsetX * Scale + (Width - 1) * AnchorPos.x
-    UB.y = y + OffsetY * Scale + (Height - 1) * AnchorPos.y
+    UB._x = x + OffsetX * Scale + (Width - 1) * AnchorPos.x
+    UB._y = y + OffsetY * Scale + (Height - 1) * AnchorPos.y
   end
 
   Anchor:SetSize(Width, Height)
   Anchor.AnimationFrame:SetSize(Width, Height)
 
-  Main:SetAnchorPoint(Anchor, UB.x, UB.y)
+  Main:SetAnchorPoint(Anchor, UB._x, UB._y)
 
   -- Update alignment if alignswap is open
   if Options.AlignSwapOptionsOpen then
@@ -2243,6 +2247,28 @@ function GUB.Main:DelUB(BarType, TablePath)
 end
 
 -------------------------------------------------------------------------------
+-- DeepCopy
+--
+-- Does a recursive copy and will also copy underscore keys
+-- Wipes the Dest first
+-------------------------------------------------------------------------------
+function GUB.Main:DeepCopy(Source, Dest, Recursive)
+  if Recursive == nil then
+    wipe(Dest)
+  end
+
+  for k, v in pairs(Source) do
+    if type(v) == 'table' then
+      local t = {}
+      Dest[k] = t
+      Main:DeepCopy(v, t, true)
+    else
+      Dest[k] = v
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
 -- CopyTableValues
 --
 -- Copies all the data from one table to another.
@@ -2434,13 +2460,18 @@ end
 --
 -- Updates the stance data against the defaults by adding or removing data
 -------------------------------------------------------------------------------
-function GUB.Main:UpdatePlayerStances(BarType, ClassStances)
-  local DefaultClassStances = DUB[BarType].Triggers.Default.ClassStances
+function GUB.Main:UpdatePlayerStances(BarType, ClassStances, IsTriggers)
+  local CSD
+  if IsTriggers then
+    CSD = DUB[BarType].Triggers.Default.ClassStances
+  else
+    CSD = DUB[BarType].ClassStances
+  end
 
-  Main:CopyMissingTableValues(DefaultClassStances, ClassStances)
+  Main:CopyMissingTableValues(CSD, ClassStances)
 
   for KeyName, ClassStance in pairs(ClassStances) do
-    local StanceD = DefaultClassStances[KeyName]
+    local StanceD = CSD[KeyName]
 
     if StanceD ~= nil then
       if type(StanceD) == 'table' then
@@ -2520,7 +2551,7 @@ function GUB.Main:StatusCheck(Event)
 
   -- Need to check enabled here cause when a bar gets enabled its layout gets set.
   -- Causing this function to get called even if the bar is disabled.
-  if UB.Enabled then
+  if UB._Enabled then
     local Hide = false
     -- Always show bars if show or testing
     if not UnitBars.Show and not UnitBars.Testing then
@@ -2565,6 +2596,70 @@ function GUB.Main:StatusCheck(Event)
     -- Hide/show the unitbar.
     HideUnitBar(self, Hide)
   end
+end
+
+-------------------------------------------------------------------------------
+-- ImportStringTable
+--
+-- Imports a string back into a table
+--
+-- Data    String to get imported
+--
+-- Returns
+--   Success      true or false
+--   Version      Version number of the mod that exported this data
+--   BarType      The bar that the data was exported from
+--   Type         Type of data
+--   Name         Name of the data
+--   Table        Actual table that got exported
+-------------------------------------------------------------------------------
+function GUB.Main:ImportStringTable(Data)
+  local CompressedTable = LD:DecodeForPrint(Data)
+
+  if CompressedTable then
+    local SerializedTable = LD:DecompressDeflate(CompressedTable)
+
+    if SerializedTable then
+      local Success, ImportData = LS:Deserialize(SerializedTable)
+
+      if Success then
+        if ImportData.ID == 'GALVIN_UNIT_BARS' then
+          return true, ImportData.Version, ImportData.VersionType, ImportData.BarType, ImportData.Type, ImportData.DisplayType, ImportData.Name, ImportData.Table
+        end
+      end
+    end
+  end
+
+  return false
+end
+
+-------------------------------------------------------------------------------
+-- ExportTableString
+--
+-- Exports a table into a string
+--
+-- Type      Strng: type of data to export
+-- Name      String: Name of the data
+-- Table     Table of data to export
+--
+-- Returns String
+-------------------------------------------------------------------------------
+function GUB.Main:ExportTableString(BarType, Type, DisplayType, Name, Table)
+  local ExportTable = {
+    ID = 'GALVIN_UNIT_BARS',
+    Version = Version,
+    VersionType = 'classic',
+    BarType = BarType,
+    Type = Type,
+    DisplayType = DisplayType,
+    Name = Name,
+    Table = Table,
+  }
+
+  local SerializedTable = LS:SerializeEx({ errorOnUnserializableType = false }, ExportTable)
+  local CompressedTable = LD:CompressDeflate(SerializedTable)
+
+  return LD:EncodeForPrint(CompressedTable)
 end
 
 --*****************************************************************************
@@ -3773,7 +3868,7 @@ function GUB.Main:UnitBarsSetAllOptions(Action)
     if UnitBars.AuraListOn then
       -- use a dummy function since nothing needs to be done.
       Main:SetAuraTracker(AuraListName, 'fn', function() end)
-      Main:SetAuraTracker(AuraListName, 'units', Main:StringSplit(' ', UnitBars.AuraListUnits))
+      Main:SetAuraTracker(AuraListName, 'units', Main:SplitString(' ', UnitBars.AuraListUnits))
     else
       Main:SetAuraTracker(AuraListName, 'off')
     end
@@ -3892,7 +3987,7 @@ local function CreateUnitBar(UnitBarF, BarType)
     Anchor:SetToplevel(true)
 
     -- Get name for align and swap.
-    Anchor.Name = UnitBars[BarType].Name
+    Anchor.Name = UnitBars[BarType]._Name
 
     -- Create the animation frame.
     local AnimationFrame = CreateFrame('Frame', nil, Anchor)
@@ -3984,9 +4079,9 @@ function GUB.Main:SetUnitBars(ProfileChanged)
     if EnableClass then
       local ClassStances = DUB[BarType].ClassStances[PlayerClass]
 
-      UB.Enabled = ClassStances ~= nil and Contains(ClassStances, true) ~= nil
+      UB._Enabled = ClassStances ~= nil and Contains(ClassStances, true) ~= nil
     end
-    local Enabled = UB.Enabled
+    local Enabled = UB._Enabled
 
     if Enabled then
       Index = Index + 1
@@ -4199,7 +4294,7 @@ local ExcludeList = {
   ['*.Triggers.#'] = 1,
 }
 
-local function FixUnitBars(DefaultTable, Table, TablePath, RTablePath)
+function GUB.Main:FixUnitBars(DefaultTable, Table, TablePath, RTablePath)
   if DefaultTable == nil then
     DefaultTable = DUB
     Table = UnitBars
@@ -4228,7 +4323,7 @@ local function FixUnitBars(DefaultTable, Table, TablePath, RTablePath)
     if ExcludeList[format('%s%s', TablePath, PathKey)] == nil then
       if DefaultValue ~= nil then
         if type(Value) == 'table' then
-          FixUnitBars(DefaultValue, Value, format('%s%s.', TablePath, PathKey), format('%s%s.', RTablePath, RPathKey))
+          Main:FixUnitBars(DefaultValue, Value, format('%s%s.', TablePath, PathKey), format('%s%s.', RTablePath, RPathKey))
         end
       else
         --print('ERASED:', format('%s%s', RTablePath, RPathKey))
@@ -4263,9 +4358,12 @@ function GUB:ApplyProfile()
   if Ver == nil or Ver < 140 then -- 1.40
     ConvertUnitBarData(3)
   end
+  if Ver == nil or Ver < 141 then -- 1.41
+    ConvertUnitBarData(4)
+  end
 
   -- Make sure profile is accurate.
-  FixUnitBars()
+  Main:FixUnitBars()
   UnitBars.Version = Version
 
   Main:SetUnitBars(true)
@@ -4354,9 +4452,10 @@ function GUB:OnEnable()
   -- Initialize the events.
   RegisterEvents('register', 'main')
 
-  if Gdata.ShowMessage ~= 13 then
-    Gdata.ShowMessage = 13
+  if Gdata.ShowMessage ~= 14 then
+    Gdata.ShowMessage = 14
     Main:MessageBox(DefaultUB.ChangesText[1])
   end
 end
 
+GUB.Main.SplitString = function(self, ...) return SplitString(...) end
