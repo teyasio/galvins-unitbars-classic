@@ -190,7 +190,7 @@ LSM:Register('border',    'GUB Square Border', [[Interface\Addons\GalvinUnitBars
 --
 -- PlayerClass            - Name of the class for the player in uppercase, no spaces. not langauge sensitive.
 -- PlayerGUID             - Globally unique identifier for the player.  Used by CombatLogUnfiltered()
--- PlayerPowerType        - The current power type for the player.
+-- PlayerPowerType        - String: The current power type for the player.
 -- PlayerStance           - The current form/stance the player is in. 0 for none
 --
 -- RegEventFrames         - Table used by RegEvent()
@@ -3659,7 +3659,7 @@ function GUB:UnitBarsUpdateStatus(Event)
   HasTarget = UnitExists('target')
   HasPet = PetHasActionBar() or HasPetUI()
   PlayerStance = GetPlayerStance()
-  PlayerPowerType = UnitPowerType('player')
+  _, PlayerPowerType = UnitPowerType('player')
 
   Main.InCombat = InCombat
   Main.IsDead = IsDead
@@ -4435,7 +4435,7 @@ function GUB:OnEnable()
   -- Get player stuff
   -- Get the globally unique identifier for the player.
   _, PlayerClass = UnitClass('player')
-  PlayerPowerType = UnitPowerType('player')
+  _, PlayerPowerType = UnitPowerType('player')
   PlayerGUID = UnitGUID('player')
 
   ShareData()

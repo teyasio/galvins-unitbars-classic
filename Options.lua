@@ -4041,7 +4041,7 @@ local function CreatePowerColorOptions(Order, Name)
   -- Power types for the player power bar.
   -- These cover classes with more than one power type.
   local PlayerPower = {
-    DRUID = {MANA = 0, ENERGY = 0, RAGE = 0},
+    DRUID = {MANA = 1, ENERGY = 1, RAGE = 1},
   }
 
   -- Set up a power order.  half goes first, then normal
@@ -4060,11 +4060,11 @@ local function CreatePowerColorOptions(Order, Name)
 
   local PCOA = PowerColorOptions.args
   local ClassPowerType = PlayerPower[Main.PlayerClass]
-  local PlayerPowerType = ConvertPowerType[Main.PlayerPowerType]
+  local PlayerPowerType = Main.PlayerPowerType
   Index = 0
 
-  for _, PowerType in pairs(PowerOrder) do
-    local n = gsub(strlower(PowerType), '%a', strupper, 1)
+  for _, PowerType in ipairs(PowerOrder) do
+    local Name = gsub(strlower(PowerType), '%a', strupper, 1)
     Index = Index + 1
 
     if ClassPowerType and ClassPowerType[PowerType] or PowerType == PlayerPowerType then
@@ -4075,7 +4075,7 @@ local function CreatePowerColorOptions(Order, Name)
 
     PCOA[PowerType] = {
       type = 'color',
-      name = n,
+      name = Name,
       order = Order,
       width = 'half',
       hasAlpha = true,

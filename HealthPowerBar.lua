@@ -304,7 +304,7 @@ local function Casting(UnitBarF, SpellID, Message)
     if UnitBarF.BarType == 'ManaPower' then
       BarPowerType = PowerMana
     else
-      BarPowerType = Main.PlayerPowerType
+      BarPowerType = ConvertPowerType[Main.PlayerPowerType]
     end
 
     if UnitBarF.UnitBar.Layout.PredictedCost then
