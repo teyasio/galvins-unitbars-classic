@@ -191,6 +191,33 @@ GUB.DefaultUB.Version = GetAddOnMetadata(MyAddon, 'Version') * 100
 -- Triggers               - See Bar.lua triggers
 --
 -------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+-- Stance Structure
+--   ClassStanceNames[ClassName]  --  String: Name of the class in uppercase
+--     [0]                        --  String: 'No Stance'
+--     [1 to # of stances]        --  String: Contains the name of each stance for that class
+--
+--   Data fed into SetClassStances
+--   ClassStances[ClassName]      --  String: Name of the class in uppercase
+--     true or false              --  This is from {T} or {F}. Defaults all the stance options to true or false
+--     -100                       --  Defaults the 'No Stance' option to false
+--     100                        --  Defaults the 'No Stance' option to true
+--     (Stance Number)            --  If negative then defaults this stance to false otherwise true
+--
+--   Final Data
+--   ClassStances[ClassName]
+--     All                        -- If true then matches for all classes and stances. Ignores stance checks
+--     Inverse                    -- Inverts the logic test for stances. Does the opposite
+--     ClassName
+--     Enabled                    -- If true then stances will be used, otherwise no stances can
+--                                   be used for this class returning false for a match
+--     [0]                        -- No Stance: True or false.
+--     [Stance Number]            -- All other stances: True or false. this stance is used appears in options
+--
+--
+-- NOTES:  If there is no stancename data for a class. Then the options will say 'This Class has no Stances'
+-------------------------------------------------------------------------------
 local DefaultBgTexture = 'Blizzard Tooltip'
 local DefaultBorderTexture = 'Blizzard Tooltip'
 local DefaultStatusBarTexture = 'Blizzard'
@@ -405,7 +432,7 @@ local function SetClassStances(ClassStances, Enabled)
         -- Copy stances of classname
         -- if disabled then set each stance to false. This is for triggers when using false disabled
         if StanceNames then
-          for k, v in pairs(StanceNames) do
+          for k in pairs(StanceNames) do
             t[k] = Enabled
           end
         end

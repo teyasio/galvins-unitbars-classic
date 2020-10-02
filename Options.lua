@@ -20,7 +20,6 @@ local Main = GUB.Main
 local Bar = GUB.Bar
 local Options = GUB.Options
 
-local UnitBarsF = Main.UnitBarsF
 local ConvertPowerTypeHAP = Main.ConvertPowerTypeHAP
 local ConvertPowerType = Main.ConvertPowerType
 local ConvertCombatColor = Main.ConvertCombatColor
@@ -1672,7 +1671,7 @@ end
 --
 -- Create options to change stances for the trigger
 --
--- Subfunction of AddTriggerOption(), CreateUnitBarOptions()
+-- Subfunction of CreateTriggerTabOptions(), CreateUnitBarOptions()
 --
 -- Order           Position in the options.
 -- UBF             Unitbar frame to access the bar functions.
@@ -1719,7 +1718,7 @@ local function GetClassStancesTable(BarType, ClassStancesTP)
 end
 
 local function CreateStanceOptions(BarType, Order, ClassStancesTP, BBar, DisableFn)
-  local UBF = UnitBarsF[BarType]
+  local UBF = Main.UnitBarsF[BarType]
   local ClassStanceNames = DefaultUB.ClassStanceNames
   local PlayerClass = Main.PlayerClass
   local ClassDropdown = {}
@@ -4053,11 +4052,6 @@ local function CreatePowerColorOptions(Order, Name)
     Index = Index + 1
   end
 
-  for PowerType in pairs(ConvertPowerTypeHAP) do
-    PowerOrder[Index] = PowerType
-    Index = Index + 1
-  end
-
   local PCOA = PowerColorOptions.args
   local ClassPowerType = PlayerPower[Main.PlayerClass]
   local PlayerPowerType = Main.PlayerPowerType
@@ -5281,7 +5275,7 @@ local function CreateAlignSwapOptions()
             if KeyName == 'x' or KeyName == 'y' then
               Value = tonumber(Value)
               if Value then
-                AlignSwapAnchor.UnitBar[KeyName] = Value
+                AlignSwapAnchor.UnitBar[format('_%s', KeyName)] = Value
               end
               local UB = AlignSwapAnchor.UnitBar
 

@@ -2438,6 +2438,7 @@ end
 local function GetPlayerStance()
   -- Priest spirit of redemption doesn't work with GetShapeshiftFormInfo
 
+  if true then return 0 end
   local FS = FormIDStance[PlayerClass]
 
   if FS then
@@ -2459,6 +2460,11 @@ end
 -- UpdatePlayerStances
 --
 -- Updates the stance data against the defaults by adding or removing data
+--
+-- NOTES:  This will remove entries in ClassStances if those are not found
+--         in the bar.  This is so when triggers or flag options get copied
+--         to a different bar, stances that matched on the old bar are removed
+--         if they'll never match on the new bar
 -------------------------------------------------------------------------------
 function GUB.Main:UpdatePlayerStances(BarType, ClassStances, IsTriggers)
   local CSD
@@ -2501,10 +2507,6 @@ end
 --
 -- Returns true if the stance is found assuming enabled
 --
--- NOTES:  This will remove entries in ClassStances if those are not found
---         in the bar.  This is so when triggers or flag options get copied
---         to a different bar, stances that matched on the old bar are removed
---         if they'll never match on the new bar
 --
 --   ClassStances                  A list of classes in uppercase.  Each class has an array where the index is the stance
 --                                 Example: ClassStances.WARRIOR[2] = true, warrior defensive stance
