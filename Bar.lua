@@ -384,6 +384,7 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists, G
 --  TriggerData
 --    ActiveTriggers                           Contains reference to triggers that will be used during combat
 --    ActiveBoxesAll[BoxNumber]                true or false. Used by the 'ALL' options.  This tells which boxes are active
+--    ActiveBoxesCustom[Group][BoxNumber]      true or false. Used by SetTriggersCustomGroup()
 --    ActiveObjects[BoxNumber][ObjectTypeID]   Objects actively being used. Contains the trigger index that last used the object
 --                                             Used by DoTriggers(), CheckTriggers() and EnableTriggers()
 --                                               0 : means no trigger modified that object so restore it
@@ -399,7 +400,9 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists, G
 --    InputValueNamesDropdown[]                Array: Used by trigger options
 --    InputValues[InputName]                   This keeps track of the values set thru SetTriggers(). InputName is the name used in SetTriggers()
 --
---    GroupsDropdown                Pulldown menu contains the name of each group. Used by options
+--    GroupsDropdown                           Pulldown menu contains the name of each group. Used by options
+--    NameToGroup[GroupName]                   Returns group based on the name of that group
+--
 --    Groups[Index]
 --      Name                        Name of the group. Usually this is the name of each box, like Rune 1, Rune 2, etc
 --      BoxNumber                   Number of box or -1 for region
@@ -442,7 +445,7 @@ local IsModifierKeyDown, CreateFrame, assert, PlaySoundFile, wipe, UnitExists, G
 --   CanAnimate                      true or false.  If true then the trigger can animate.
 --   Animate                         true or false. if true then the trigger will animate
 --   AnimateSpeed                    Speed to play the animation at.
---   OffsetAll                       true or false. Used for bar offset size.  By options.
+--   OffsetAll                       true or false. Used for bar offset size or padding  By options.
 --   ColorFn                         Color function
 --   BarFn                           Bar Function to call to make changes to the bar
 --
@@ -1101,7 +1104,6 @@ local function RestoreBackdrops(Frame)
     end
     return Found
   end
-  RestoreBackdrop(Frame)
 end
 
 -------------------------------------------------------------------------------
@@ -7125,6 +7127,40 @@ end
 --%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -------------------------------------------------------------------------------
+-- SetTriggersCustomGroup
+--
+-- Works with custom groups only
+-- Like SetTriggers accept it turns off an off a custom groups boxnumber
+-------------------------------------------------------------------------------
+function BarDB:SetTriggersCustomGroup(GroupName, Active, ...)
+  local TriggerData = self.TriggerData
+  local Group = TriggerData.NameToGroup[GroupName]
+
+  if Group == nil then
+    assert(false, 'SetTriggersCustomGroup - Invalid GroupName: ' .. GroupName)
+  else
+    local ActiveBoxes = TriggerData.ActiveBoxesCustom[Group]
+
+    if ActiveBoxes == nil then
+      ActiveBoxes = {}
+      TriggerData.ActiveBoxesCustom[Group] = ActiveBoxes
+    end
+
+    for Index = 1, #ActiveBoxes do
+      ActiveBoxes[Index] = -1
+    end
+
+    if Active then
+      for Index = 1, select('#', ...) do
+        local BoxNumber = select(Index, ...) or -1
+
+        ActiveBoxes[Index] = BoxNumber
+      end
+    end
+  end
+end
+
+-------------------------------------------------------------------------------
 -- SetTriggersActive
 --
 -- Sets which box is currently active or inactive.  This is used by
@@ -7669,6 +7705,7 @@ end
 --   [1+] = [GroupIndex]         Table containing table name, box name, and objects info
 --     [1] = Group Type            number   : Boxnumber of the box for the bar
 --                                 'r'      : Region
+--                                 'c'      : Custom: Can be on any box. Gets set thru SetTriggersGroup()
 --                                 'a'      : Triggers will change ALL boxes
 --                                 'aa'     : Triggers will only change active boxes
 --                                 'ai'     : Triggers will only change inactive boxes
@@ -7700,6 +7737,7 @@ function BarDB:EnableTriggers(Enable, GroupsInfo)
       local InputValueNamesDropdown = {}
       local Groups = {}
       local GroupsDropdown = {}
+      local NameToGroup = {}
       local ActiveObjects = {}
       local DropdownIndex = 1
 
@@ -7727,6 +7765,7 @@ function BarDB:EnableTriggers(Enable, GroupsInfo)
       TriggerData.ActiveTriggers = {}
       TriggerData.ActiveObjects = ActiveObjects
       TriggerData.ActiveBoxesAll = {}
+      TriggerData.ActiveBoxesCustom = {}
       TriggerData.InputValueTypes = InputValueTypes
       TriggerData.InputValueNames = InputValueNames
       TriggerData.InputValueNamesDropdown = InputValueNamesDropdown
@@ -7734,6 +7773,7 @@ function BarDB:EnableTriggers(Enable, GroupsInfo)
 
       TriggerData.Groups = Groups
       TriggerData.GroupsDropdown = GroupsDropdown
+      TriggerData.NameToGroup = NameToGroup
 
       -- do boxes, region, any etc
       for GroupIndex = 1, #GroupsInfo do
@@ -7743,7 +7783,7 @@ function BarDB:EnableTriggers(Enable, GroupsInfo)
         local GroupType = GroupInfo[1]
         local GroupName = GroupInfo[2]
 
-        if type(GroupType) ~= 'number' and GroupType ~= 'r' and
+        if type(GroupType) ~= 'number' and GroupType ~= 'r' and GroupType ~= 'c' and
            GroupType ~= 'a' and GroupType ~= 'aa' and GroupType ~= 'ai' then
           assert(false, 'EnableTriggers - Invalid GroupType: ' .. GroupType)
         end
@@ -7758,6 +7798,7 @@ function BarDB:EnableTriggers(Enable, GroupsInfo)
         Group.BoxNumber = BoxNumber
         Group.Type = GroupType
         GroupsDropdown[GroupIndex] = GroupName
+        NameToGroup[GroupName] = Group
 
         -- Objects
         local ObjectTypeTypeID = {}
@@ -7911,6 +7952,7 @@ function BarDB:DoTriggers()
   local ActiveTriggers = TriggerData.ActiveTriggers
   local ActiveObjects = TriggerData.ActiveObjects
   local ActiveBoxesAll = TriggerData.ActiveBoxesAll
+  local ActiveBoxesCustom = TriggerData.ActiveBoxesCustom
   local NumBoxes = self.NumBoxes
   local OTSound = OT.Sound
 
@@ -7935,7 +7977,22 @@ function BarDB:DoTriggers()
       end
     end
 
-    if Type == 'a' or Type == 'aa' or Type == 'ai' then
+    -- Custom group
+    if Type == 'c' then
+      local ActiveBoxes = ActiveBoxesCustom[Group]
+
+      if ActiveBoxes then
+        for Index = 1, #ActiveBoxes do
+          local BoxNumber = ActiveBoxes[Index]
+
+          if BoxNumber ~= -1 then
+            ActiveObjects[BoxNumber][ObjectTypeID] = TriggerIndex
+          end
+        end
+      end
+
+    -- all
+    elseif Type == 'a' or Type == 'aa' or Type == 'ai' then
       for BoxNumber = 1, NumBoxes do
         local ActiveBoxAll = ActiveBoxesAll[BoxNumber]
 

@@ -1,8 +1,8 @@
-## Interface: 11305
+## Interface: 11306
 ## Title: Galvin's UnitBars Classic
 ## Notes: Displays resource bars that can be moved around
 ## Author: Galvin
-## Version: 1.44
+## Version: 1.45
 ## OptionalDeps: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets
 ## SavedVariables: GalvinUnitBarsClassicDB
 #@no-lib-strip@
