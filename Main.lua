@@ -4346,7 +4346,7 @@ function GUB:ApplyProfile()
   ShareData()
 
   -- Check for invalid version number
-  if Ver > 500 then
+  if Ver == nil or Ver > 500 then
     Ver = nil
     Version = 130
   end
